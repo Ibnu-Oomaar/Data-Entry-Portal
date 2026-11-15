@@ -20,6 +20,12 @@ describe('loadConfig', () => {
   it('enables SSL for Neon PostgreSQL URLs', () => {
     expect(loadConfig({ ...base, DATABASE_URL: 'postgresql://user:password@ep.example.neon.tech/db?sslmode=require' }).databaseSsl).toBe(true);
   });
+  it('allows the deployed frontend origin in addition to configured origins', () => {
+    expect(loadConfig({ ...base, CORS_ORIGINS: 'https://school.example' }).corsOrigins).toEqual([
+      'https://school.example',
+      'https://data-entry-portal-dusky.vercel.app',
+    ]);
+  });
   it('fails fast on a short or example session secret', () => {
     expect(() => loadConfig({ ...base, SESSION_SECRET: 'short' })).toThrow(/SESSION_SECRET/);
     expect(() => loadConfig({ ...base, NODE_ENV: 'production', SESSION_SECRET: 'change-me-' + 'x'.repeat(30) })).toThrow(/example value/);

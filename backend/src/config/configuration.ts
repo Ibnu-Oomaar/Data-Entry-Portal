@@ -24,6 +24,8 @@ export interface AppConfig {
 
 type Env = Record<string, string | undefined>;
 
+const DEPLOYED_FRONTEND_ORIGIN = 'https://data-entry-portal-dusky.vercel.app';
+
 function bool(value: string | undefined, fallback: boolean): boolean {
   if (value === undefined || value === '') return fallback;
   return ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase());
@@ -69,10 +71,15 @@ export function loadConfig(env: Env = process.env): AppConfig {
     runMigrations: bool(env.RUN_MIGRATIONS, true),
     sessionSecret,
     cookieSecure: bool(env.COOKIE_SECURE, isProduction),
-    corsOrigins: (env.CORS_ORIGINS ?? '')
-      .split(',')
-      .map((o) => o.trim())
-      .filter(Boolean),
+    corsOrigins: [
+      ...new Set([
+        ...(env.CORS_ORIGINS ?? '')
+          .split(',')
+          .map((o) => o.trim())
+          .filter(Boolean),
+        DEPLOYED_FRONTEND_ORIGIN,
+      ]),
+    ],
     trustProxy: int(env, 'TRUST_PROXY', 0),
     school: {
       name: env.SCHOOL_NAME?.trim() || 'Noradin Boys Secondary School',
