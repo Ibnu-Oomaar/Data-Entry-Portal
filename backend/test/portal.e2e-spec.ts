@@ -189,7 +189,12 @@ describe('Classes Data Entry Portal (end to end, real PostgreSQL + workbook)', (
       expect(res.headers['x-content-type-options']).toBe('nosniff');
     });
 
-    it('the /health and /school endpoints are public and contain no personal data', async () => {
+    it('the service root, /health and /school endpoints are public and contain no personal data', async () => {
+      expect((await http().get('/').expect(200)).body.data).toEqual({
+        name: 'Classes Data Entry Portal API',
+        status: 'ok',
+        health: '/api/health',
+      });
       expect((await http().get('/api/health').expect(200)).body.data).toEqual({ status: 'ok' });
       expect((await http().get('/api/school').expect(200)).body.data).toEqual({ name: 'Noradin Boys Secondary School', shift: 'Morning' });
     });

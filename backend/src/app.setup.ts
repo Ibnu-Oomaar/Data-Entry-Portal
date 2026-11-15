@@ -1,4 +1,4 @@
-import type { INestApplication } from '@nestjs/common';
+import { RequestMethod, type INestApplication } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import express from 'express';
 import helmet from 'helmet';
@@ -38,7 +38,9 @@ export function configureApp(app: INestApplication): void {
     });
   }
 
-  nest.setGlobalPrefix('api');
+  nest.setGlobalPrefix('api', {
+    exclude: [{ path: '/', method: RequestMethod.GET }],
+  });
   nest.useGlobalPipes(createValidationPipe());
   nest.useGlobalFilters(new AllExceptionsFilter());
   nest.useGlobalInterceptors(new ResponseEnvelopeInterceptor());

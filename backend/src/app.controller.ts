@@ -11,6 +11,17 @@ export class AppController {
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
+  /** Basic API landing response for deployments opened at the service root. */
+  @Public()
+  @Get()
+  root() {
+    return {
+      name: 'Classes Data Entry Portal API',
+      status: 'ok',
+      health: '/api/health',
+    };
+  }
+
   /** Liveness/readiness for load balancers: checks PostgreSQL. */
   @Public()
   @Get('health')
