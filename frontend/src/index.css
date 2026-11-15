@@ -1,0 +1,167 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import '@fontsource-variable/albert-sans';
+@import '@fontsource-variable/caveat';
+
+/*
+  Design tokens — "the exercise book".
+  paper-white page, ballpoint-blue for actions, teacher's red pen reserved for the score,
+  mint / amber for status. Soft radii that step up with the size of the surface.
+*/
+:root {
+  color-scheme: light;
+  --background: #f4f6fb;
+  --foreground: #1b2340;
+  --card: #ffffff;
+  --card-foreground: #1b2340;
+  --popover: #ffffff;
+  --popover-foreground: #1b2340;
+  --primary: #3d58d6;
+  --primary-hover: #2f46b8;
+  --primary-foreground: #ffffff;
+  --primary-soft: #eef1fd;
+  --primary-soft-2: #dde3fa;
+  --secondary: #eef1fd;
+  --secondary-foreground: #2f46b8;
+  --muted: #edf0f7;
+  --muted-foreground: #5a6482;
+  --subtle-foreground: #7b84a0;
+  --accent: #eef1fd;
+  --accent-foreground: #2f46b8;
+  --destructive: #c02b3b;
+  --border: #e1e6f2;
+  --input: #cbd3e7;
+  --ring: #3d58d6;
+  --good: #167a52;
+  --good-bar: #2fae7c;
+  --good-soft: #e5f6ee;
+  --amber: #9a5b00;
+  --amber-bar: #e3a02e;
+  --amber-soft: #fdf1da;
+  --pen: #d63447;
+  --pen-soft: #fdecee;
+  --track: #e3e8f3;
+  --radius: 0.75rem;
+}
+
+@theme inline {
+  --font-sans: 'Albert Sans Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-hand: 'Caveat Variable', 'Bradley Hand', cursive;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-soft-2: var(--primary-soft-2);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-subtle: var(--subtle-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-good: var(--good);
+  --color-good-bar: var(--good-bar);
+  --color-good-soft: var(--good-soft);
+  --color-amber: var(--amber);
+  --color-amber-bar: var(--amber-bar);
+  --color-amber-soft: var(--amber-soft);
+  --color-pen: var(--pen);
+  --color-pen-soft: var(--pen-soft);
+  --color-track: var(--track);
+
+  --radius-sm: 0.5rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+
+  --shadow-card: 0 1px 2px rgb(27 35 64 / 0.04), 0 12px 30px -16px rgb(47 70 184 / 0.2);
+  --shadow-pop: 0 2px 6px rgb(27 35 64 / 0.06), 0 18px 40px -12px rgb(27 35 64 / 0.22);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    margin: 0;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: 'tnum' 1;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100dvh;
+  }
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.015em;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']) {
+    cursor: pointer;
+  }
+  ::selection {
+    background: var(--primary-soft-2);
+  }
+}
+
+/* The one decorative surface: a ruled exercise-book page with a red margin line. */
+.notebook {
+  background-color: #fbfcff;
+  background-image:
+    linear-gradient(to right, transparent 55px, rgb(214 52 71 / 0.35) 55px, rgb(214 52 71 / 0.35) 56.5px, transparent 56.5px),
+    repeating-linear-gradient(to bottom, transparent 0, transparent 35px, #dbe3f6 35px, #dbe3f6 36px);
+  background-position: 0 0, 0 14px;
+}
+
+@keyframes pen-draw {
+  from {
+    stroke-dashoffset: 520;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.pen-ring path {
+  stroke-dasharray: 520;
+  animation: pen-draw 0.9s cubic-bezier(0.4, 0, 0.2, 1) 0.15s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .pen-ring path {
+    stroke-dasharray: none;
+  }
+}
+
+/* Slim scrollbars for the student list */
+.scroll-soft {
+  scrollbar-width: thin;
+  scrollbar-color: var(--input) transparent;
+}

@@ -1,0 +1,12 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+# Import reports can contain student names; keep them out of version control.
+backend/import-reports/
+# The school's source workbook holds real student data; it is supplied at import time, never committed.
+data/
+.DS_Store

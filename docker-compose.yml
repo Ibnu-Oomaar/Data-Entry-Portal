@@ -1,0 +1,60 @@
+# Local / small-school deployment: PostgreSQL + Redis + the portal (API and web app in one container).
+# NOTE: written but not run in the development sandbox (no Docker there). Run `docker compose config` and `docker compose up --build` once to verify.
+#
+# Before first start create a .env next to this file with at least:
+#   POSTGRES_PASSWORD=<a strong password>
+#   SESSION_SECRET=<48+ random bytes, e.g. node -e "console.log(require('crypto').randomBytes(48).toString('hex'))">
+# If the portal is NOT behind HTTPS yet, also set COOKIE_SECURE=false (browsers refuse Secure cookies over plain http).
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: portal
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: classes_portal
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U portal -d classes_portal"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  portal:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgres://portal:${POSTGRES_PASSWORD}@postgres:5432/classes_portal
+      REDIS_URL: redis://redis:6379/0
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      TRUST_PROXY: ${TRUST_PROXY:-0}
+      SCHOOL_NAME: ${SCHOOL_NAME:-Noradin Boys Secondary School}
+      SCHOOL_SHIFT: ${SCHOOL_SHIFT:-Morning}
+      CORS_ORIGINS: ""
+    ports:
+      - "3000:3000"
+    # The workbook is mounted read-only only so that the import CLI can read it. It is not part of the image.
+    volumes:
+      - ./data:/app/data:ro
+
+volumes:
+  pgdata:
