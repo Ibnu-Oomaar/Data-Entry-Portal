@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/api/:path*",
+      "destination": "https://data-entry-portal-5vts.onrender.com/api/:path*"
+    },
+    {
       "source": "/favicon.ico",
       "destination": "/favicon.svg"
     },
