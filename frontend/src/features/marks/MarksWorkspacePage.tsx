@@ -99,7 +99,7 @@ export function MarksWorkspacePage() {
           {selectedId ? (
             <MarkSheet studentId={selectedId} onDirtyChange={setDirty} onNext={goNext} hasNext={!!nextStudent} onClose={() => select(undefined)} />
           ) : (
-            <Card className="flex flex-col items-center gap-4 px-6 py-20 text-center">
+            <Card className="flex flex-col items-center gap-4 px-6 py-8 text-center">
               <span className="flex size-14 items-center justify-center rounded-2xl bg-primary-soft text-primary">
                 <MousePointerClick className="size-7" aria-hidden />
               </span>

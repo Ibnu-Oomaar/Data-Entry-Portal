@@ -1,5 +1,4 @@
 import { INestApplication } from '@nestjs/common';
-import Redis from 'ioredis';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { StudentImportService } from '../src/students/import/student-import.service';
@@ -8,10 +7,9 @@ import { FULL_MARKS, Session, WORKBOOK, bootApp, saveMarks, studentSession, teac
 
 const ci = (x: string, y: string) => (x.toLowerCase() < y.toLowerCase() ? -1 : x.toLowerCase() > y.toLowerCase() ? 1 : 0);
 
-describe('Classes Data Entry Portal (end to end, real PostgreSQL + Redis + workbook)', () => {
+describe('Classes Data Entry Portal (end to end, real PostgreSQL + workbook)', () => {
   let app: INestApplication;
   let ds: DataSource;
-  let redis: Redis;
   let amina: Session;
   let omar: Session;
   let ids: { a: number; b: number; c: number; other: number };
@@ -19,7 +17,7 @@ describe('Classes Data Entry Portal (end to end, real PostgreSQL + Redis + workb
   const http = () => request(app.getHttpServer());
 
   beforeAll(async () => {
-    ({ app, ds, redis } = await bootApp());
+    ({ app, ds } = await bootApp());
     const importer = app.get(StudentImportService);
     const report = await importer.importFromWorkbook(WORKBOOK);
     expect(report.success).toBe(true);
@@ -153,13 +151,15 @@ describe('Classes Data Entry Portal (end to end, real PostgreSQL + Redis + workb
       }
     });
 
-    it('stores sessions in Redis, and logout destroys the server-side session', async () => {
-      const before = (await redis.keys('sess:*')).length;
+    it('stores sessions in PostgreSQL, and logout destroys the server-side session', async () => {
+      const [{ count: before }] = await ds.query(`SELECT COUNT(*)::int AS count FROM app_sessions`);
       const s = await studentSession(app, 11516);
-      expect((await redis.keys('sess:*')).length).toBe(before + 1);
+      const [{ count: afterLogin }] = await ds.query(`SELECT COUNT(*)::int AS count FROM app_sessions`);
+      expect(afterLogin).toBe(before + 1);
       await s.agent.get('/api/auth/me').expect(200);
       await s.agent.post('/api/auth/logout').set('X-CSRF-Token', s.csrf).expect(200);
-      expect((await redis.keys('sess:*')).length).toBe(before);
+      const [{ count: afterLogout }] = await ds.query(`SELECT COUNT(*)::int AS count FROM app_sessions`);
+      expect(afterLogout).toBe(before);
       await s.agent.get('/api/auth/me').expect(401);
     });
 
@@ -339,7 +339,6 @@ describe('Classes Data Entry Portal (end to end, real PostgreSQL + Redis + workb
     it('shows null / zero — never made-up numbers', async () => {
       const [{ n }] = await ds.query(`SELECT COUNT(*)::int n FROM assessments`);
       expect(n).toBe(0);
-      await redis.del('cache:stats:overview');
       const res = await amina.agent.get('/api/stats/overview').expect(200);
       expect(res.body.data.totals).toEqual({
         students: 563, completed: 0, inProgress: 0, notStarted: 563, pending: 563,
@@ -589,7 +588,6 @@ describe('Classes Data Entry Portal (end to end, real PostgreSQL + Redis + workb
     });
 
     it('overview statistics are computed from real records', async () => {
-      await redis.del('cache:stats:overview');
       const res = await amina.agent.get('/api/stats/overview').expect(200);
       const [agg] = await ds.query(
         `SELECT COUNT(*) FILTER (WHERE status='submitted')::int completed, COUNT(*) FILTER (WHERE status='draft')::int draft,
@@ -620,14 +618,10 @@ describe('Classes Data Entry Portal (end to end, real PostgreSQL + Redis + workb
       expect(res.body.data.recentActivity[0]).toMatchObject({ teacher: expect.any(String), action: expect.stringMatching(/created|updated/) });
     });
 
-    it('overview is cached in Redis and invalidated by a save', async () => {
-      await redis.del('cache:stats:overview');
+    it('overview reflects assessment updates immediately', async () => {
       await amina.agent.get('/api/stats/overview').expect(200);
-      expect(await redis.get('cache:stats:overview')).not.toBeNull();
-      expect(await redis.ttl('cache:stats:overview')).toBeGreaterThan(0);
       const cur = (await amina.agent.get(`/api/assessments/student/${ids.b}`)).body.data.assessment;
       await saveMarks(amina, ids.b, { ...cur.marks, chapter1Notes: 1, expectedVersion: cur.version }).expect(200);
-      expect(await redis.get('cache:stats:overview')).toBeNull();
       const fresh = (await amina.agent.get('/api/stats/overview')).body.data;
       expect(fresh.recentActivity[0]).toMatchObject({ studentId: ids.b, totalMarks: 29 });
     });
@@ -643,15 +637,15 @@ describe('Classes Data Entry Portal (end to end, real PostgreSQL + Redis + workb
   });
 
   // ---------------------------------------------------------- rate limiting
-  describe('Rate limiting (Redis)', () => {
+  describe('Rate limiting (PostgreSQL)', () => {
     it('blocks repeated failed logins from one client with 429 + Retry-After, even for a valid name', async () => {
-      for (const k of await redis.keys('rl:*')) await redis.del(k);
+      await ds.query(`DELETE FROM app_rate_limits`);
       const agent = request.agent(app.getHttpServer());
       for (let i = 0; i < 5; i++) await agent.post('/api/auth/student/login').send({ studentId: 90000000 + i }).expect(401);
       const blocked = await agent.post('/api/auth/teacher/login').send({ name: 'Amina Yusuf' }).expect(429);
       expect(blocked.body.error.code).toBe('RATE_LIMITED');
       expect(Number(blocked.headers['retry-after'])).toBeGreaterThan(0);
-      for (const k of await redis.keys('rl:*')) await redis.del(k);
+      await ds.query(`DELETE FROM app_rate_limits`);
       await agent.post('/api/auth/teacher/login').send({ name: 'Amina Yusuf' }).expect(200);
     });
   });

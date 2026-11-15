@@ -1,12 +1,10 @@
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import Redis from 'ioredis';
 import { join } from 'path';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
-import { REDIS_CLIENT } from '../src/redis/redis.module';
 import { buildTypeOrmOptions } from '../src/database/typeorm.options';
 
 export const WORKBOOK = join(__dirname, '../../data/Noradin_Boys_Sorted.xlsx');
@@ -24,15 +22,13 @@ export const FULL_MARKS = {
 export interface TestContext {
   app: INestApplication;
   ds: DataSource;
-  redis: Redis;
 }
 
-/** Fresh schema (through the real migrations), empty Redis DB, full production request pipeline. */
+/** Fresh schema (through the real migrations) and full production request pipeline. */
 export async function bootApp(): Promise<TestContext> {
   const url = process.env.DATABASE_URL!;
-  const redisUrl = process.env.REDIS_URL!;
-  if (!/classes_portal_test/.test(url) || !/\/1$/.test(redisUrl)) {
-    throw new Error('Refusing to run destructive tests against a non-test database/Redis');
+  if (!/classes_portal_test/.test(url)) {
+    throw new Error('Refusing to run destructive tests against a non-test database');
   }
   const wipe = new DataSource(buildTypeOrmOptions({ databaseUrl: url }));
   await wipe.initialize();
@@ -43,9 +39,7 @@ export async function bootApp(): Promise<TestContext> {
   const app = moduleRef.createNestApplication();
   configureApp(app);
   await app.init();
-  const redis = app.get<Redis>(REDIS_CLIENT);
-  await redis.flushdb();
-  return { app, ds: app.get(DataSource), redis };
+  return { app, ds: app.get(DataSource) };
 }
 
 export interface Session {

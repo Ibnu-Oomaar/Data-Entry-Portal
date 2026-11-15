@@ -1,8 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, In } from 'typeorm';
-import { CACHE_KEYS } from '../../common/constants/cache';
-import { CacheService } from '../../redis/redis.module';
 import { Student } from '../student.entity';
 import { ImportConflict, ImportReport, ParseResult } from './student-import.types';
 import { loadWorkbook, parseStudentSheet } from './workbook-parser';
@@ -13,10 +11,7 @@ const CHUNK = 200;
 export class StudentImportService {
   private readonly logger = new Logger(StudentImportService.name);
 
-  constructor(
-    @InjectDataSource() private readonly dataSource: DataSource,
-    private readonly cache: CacheService,
-  ) {}
+  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
 
   /**
    * Imports students from the workbook. Safe to run repeatedly:
@@ -85,7 +80,6 @@ export class StudentImportService {
           );
         }
       });
-      await this.cache.del(CACHE_KEYS.statsOverview);
     }
 
     const groups = new Map<string, { classLevel: number; section: string; rows: number; newStudents: number }>();

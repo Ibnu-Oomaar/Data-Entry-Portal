@@ -7,7 +7,6 @@ export interface AppConfig {
   databaseUrl: string;
   databaseSsl: boolean;
   runMigrations: boolean;
-  redisUrl: string;
   sessionSecret: string;
   cookieSecure: boolean;
   corsOrigins: string[];
@@ -53,9 +52,6 @@ export function loadConfig(env: Env = process.env): AppConfig {
   const databaseUrl = env.DATABASE_URL ?? '';
   if (!/^postgres(ql)?:\/\//.test(databaseUrl)) problems.push('DATABASE_URL must be a postgres:// connection string');
 
-  const redisUrl = env.REDIS_URL ?? '';
-  if (!/^rediss?:\/\//.test(redisUrl)) problems.push('REDIS_URL must be a redis:// connection string');
-
   const sessionSecret = env.SESSION_SECRET ?? '';
   if (sessionSecret.length < 32) problems.push('SESSION_SECRET must be at least 32 characters');
   if (isProduction && /change-me/i.test(sessionSecret)) problems.push('SESSION_SECRET still has the example value');
@@ -69,9 +65,8 @@ export function loadConfig(env: Env = process.env): AppConfig {
     isProduction,
     port: int(env, 'PORT', 3000, 1),
     databaseUrl,
-    databaseSsl: bool(env.DATABASE_SSL, false),
+    databaseSsl: bool(env.DATABASE_SSL, /(?:[?&]sslmode=require\b|\.neon\.tech\b)/i.test(databaseUrl)),
     runMigrations: bool(env.RUN_MIGRATIONS, true),
-    redisUrl,
     sessionSecret,
     cookieSecure: bool(env.COOKIE_SECURE, isProduction),
     corsOrigins: (env.CORS_ORIGINS ?? '')

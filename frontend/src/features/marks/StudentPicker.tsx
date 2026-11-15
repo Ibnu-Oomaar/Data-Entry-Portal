@@ -46,7 +46,7 @@ export function StudentPicker({
   const to = meta ? Math.min(meta.page * meta.pageSize, meta.total) : 0;
 
   return (
-    <Card className="flex flex-col overflow-hidden lg:h-[calc(100dvh-4.5rem)]">
+    <Card className="flex flex-col overflow-hidden lg:max-h-[calc(100dvh-9.5rem)]">
       <div className="space-y-3 border-b p-4">
         <StudentFilterBar
           compact

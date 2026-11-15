@@ -17,7 +17,7 @@ function isPublic(reflector: Reflector, ctx: ExecutionContext): boolean {
   return !!reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [ctx.getHandler(), ctx.getClass()]);
 }
 
-/** 1) Generic per-IP request budget (Redis). */
+/** 1) Generic per-IP request budget, persisted in PostgreSQL. */
 @Injectable()
 export class RateLimitGuard implements CanActivate {
   constructor(private readonly limiter: RateLimitService) {}
@@ -29,7 +29,7 @@ export class RateLimitGuard implements CanActivate {
 }
 
 /**
- * 2) Authentication. The session lives in Redis; the user is re-read from PostgreSQL on every request,
+ * 2) Authentication. The session lives in PostgreSQL; the user is re-read from PostgreSQL on every request,
  * so deactivating a teacher takes effect immediately and a student can only ever be "themselves".
  */
 @Injectable()

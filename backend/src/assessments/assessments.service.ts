@@ -1,14 +1,12 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, QueryFailedError, Repository } from 'typeorm';
-import { CACHE_KEYS } from '../common/constants/cache';
 import { COMPONENT_KEYS, ComponentKey, MarksInput } from '../common/constants/assessment';
 import { AppException } from '../common/errors/app.exception';
 import { PaginatedResult } from '../common/pagination';
 import { assertGroupLimits, computeAssessment, sameMarks } from '../common/utils/marks';
 import { escapeLike } from '../common/utils/normalize';
 import { NAME_ORDER_SQL, applyOrder } from '../common/utils/order';
-import { CacheService } from '../redis/redis.module';
 import { ListStudentsDto } from '../students/dto/list-students.dto';
 import { StudentsService } from '../students/students.service';
 import { Assessment } from './assessment.entity';
@@ -67,7 +65,6 @@ export class AssessmentsService {
     @InjectRepository(Assessment) private readonly repo: Repository<Assessment>,
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly students: StudentsService,
-    private readonly cache: CacheService,
   ) {}
 
   /** Teacher view of one student: identity + current assessment (or null if nothing is entered yet). */
@@ -117,7 +114,6 @@ export class AssessmentsService {
       }
     }
 
-    if (!outcome.unchanged) await this.cache.del(CACHE_KEYS.statsOverview);
     const fresh = await this.repo.findOneOrFail({ where: { id: outcome.id }, relations: { createdBy: true, updatedBy: true } });
     return {
       student: toStudentSummary(student),

@@ -8,10 +8,10 @@ import {
   ManyToOne,
   OneToOne,
   PrimaryGeneratedColumn,
-  Relation,
   UpdateDateColumn,
   ValueTransformer,
 } from 'typeorm';
+import type { Relation } from 'typeorm';
 import { Student } from '../students/student.entity';
 import { Teacher } from '../teachers/teacher.entity';
 import type { AssessmentStatus } from '../common/constants/assessment';

@@ -4,7 +4,6 @@ import { AssessmentsModule } from './assessments/assessments.module';
 import { AuthModule } from './auth/auth.module';
 import { AppConfigModule } from './config/config.module';
 import { DatabaseModule } from './database/database.module';
-import { RedisModule } from './redis/redis.module';
 import { StatsModule } from './stats/stats.module';
 import { StudentsModule } from './students/students.module';
 import { TeachersModule } from './teachers/teachers.module';
@@ -13,7 +12,6 @@ import { TeachersModule } from './teachers/teachers.module';
   imports: [
     AppConfigModule,
     DatabaseModule,
-    RedisModule,
     TeachersModule,
     StudentsModule,
     AssessmentsModule,

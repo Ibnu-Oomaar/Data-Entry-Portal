@@ -6,10 +6,10 @@ import {
   Index,
   OneToOne,
   PrimaryGeneratedColumn,
-  Relation,
   Unique,
   UpdateDateColumn,
 } from 'typeorm';
+import type { Relation } from 'typeorm';
 import { Assessment } from '../assessments/assessment.entity';
 
 @Entity('students')

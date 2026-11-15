@@ -1,3 +1,4 @@
+
 import { ClipboardList, LayoutDashboard, LogOut, Menu, PencilLine, UserRound, Users, type LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
@@ -72,8 +73,8 @@ export function TeacherShell() {
       <a href="#main" className="sr-only z-[60] rounded-lg bg-card px-3 py-2 font-semibold shadow-pop focus:not-sr-only focus:fixed focus:left-3 focus:top-3">
         Skip to content
       </a>
-      <div className="min-h-dvh lg:grid lg:grid-cols-[16.5rem_minmax(0,1fr)]">
-        <aside className="sticky top-0 hidden h-dvh flex-col gap-6 border-r bg-card p-4 lg:flex">
+      <div className="lg:grid lg:grid-cols-[16.5rem_minmax(0,1fr)]">
+        <aside className="sticky top-0 hidden flex-col gap-6 border-r bg-card p-4 lg:flex">
           <Brand subtitle={teacher.school.name} className="px-1 pt-1" />
           <NavList />
           <div className="mt-auto">

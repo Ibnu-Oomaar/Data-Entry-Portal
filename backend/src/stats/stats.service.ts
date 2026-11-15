@@ -2,8 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { MAX_TOTAL } from '../common/constants/assessment';
-import { CACHE_KEYS, STATS_TTL_SECONDS } from '../common/constants/cache';
-import { CacheService } from '../redis/redis.module';
 import { ClassSummary, StudentsService } from '../students/students.service';
 
 export interface ActivityItem {
@@ -56,14 +54,10 @@ export class StatsService {
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly students: StudentsService,
-    private readonly cache: CacheService,
   ) {}
 
-  /** Teacher dashboard numbers. Everything is computed from real rows; cached briefly in Redis. */
+  /** Teacher dashboard numbers. Everything is computed directly from PostgreSQL. */
   async overview(): Promise<Overview> {
-    const cached = await this.cache.getJson<Overview>(CACHE_KEYS.statsOverview);
-    if (cached) return cached;
-
     const [[t], bandRows, activityRows, structure] = await Promise.all([
       this.dataSource.query(`
         SELECT COUNT(*)                                                    AS students,
@@ -124,7 +118,6 @@ export class StatsService {
         }),
       ),
     };
-    await this.cache.setJson(CACHE_KEYS.statsOverview, overview, STATS_TTL_SECONDS);
     return overview;
   }
 

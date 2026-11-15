@@ -2,7 +2,6 @@ import type { INestApplication } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import express from 'express';
 import helmet from 'helmet';
-import type Redis from 'ioredis';
 import { existsSync } from 'fs';
 import { join, resolve } from 'path';
 import { createSessionMiddleware } from './auth/session.config';
@@ -10,13 +9,13 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ResponseEnvelopeInterceptor } from './common/interceptors/response-envelope.interceptor';
 import { createValidationPipe } from './common/pipes/validation.pipe';
 import { APP_CONFIG, AppConfig } from './config/configuration';
-import { REDIS_CLIENT } from './redis/redis.module';
+import { DataSource } from 'typeorm';
 
 /** Shared by main.ts and the end-to-end tests so tests exercise the real pipeline. */
 export function configureApp(app: INestApplication): void {
   const nest = app as NestExpressApplication;
   const config = app.get<AppConfig>(APP_CONFIG);
-  const redis = app.get<Redis>(REDIS_CLIENT);
+  const dataSource = app.get(DataSource);
 
   nest.set('trust proxy', config.trustProxy);
   nest.disable('x-powered-by');
@@ -28,7 +27,7 @@ export function configureApp(app: INestApplication): void {
       contentSecurityPolicy: { directives: config.cookieSecure ? {} : { 'upgrade-insecure-requests': null } },
     }),
   );
-  nest.use(createSessionMiddleware(config, redis));
+  nest.use(createSessionMiddleware(config, dataSource));
 
   if (config.corsOrigins.length) {
     nest.enableCors({
