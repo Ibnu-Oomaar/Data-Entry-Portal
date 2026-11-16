@@ -20,7 +20,7 @@ npm run teacher -- assign "Full Name" 1 A
 npm run teacher -- unassign "Full Name" 1 A
 ```
 
-Each class/section can have only one teacher owner. An unassigned section is unavailable to all teachers until assigned. To transfer a section, unassign it from its current teacher before assigning it to the new teacher; existing student and assessment records remain intact.
+Each teacher/section pair is assigned independently, so a section may be shared by multiple teachers. An unassigned section is unavailable to all teachers until assigned. Student access follows each teacher's assignments, and assessment records remain private to the teacher who entered them.
 
 ## Excel exports
 

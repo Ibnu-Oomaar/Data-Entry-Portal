@@ -762,7 +762,7 @@ describe('Classes Data Entry Portal (end to end, real PostgreSQL + workbook)', (
     });
 
     describe('Teacher class/section isolation', () => {
-      it('restricts each teacher to their explicitly assigned class/section across reads, writes and exports', async () => {
+      it('allows shared roster access while keeping each teacher assessment private', async () => {
         const assignments = app.get(TeacherClassSectionsService);
         const [{ student_id: ownedStudent }] = await ds.query(
           `SELECT student_id FROM students WHERE class_level = 3 AND section = 'A' ORDER BY student_id LIMIT 1`,
@@ -770,26 +770,30 @@ describe('Classes Data Entry Portal (end to end, real PostgreSQL + workbook)', (
         if (!(await amina.agent.get(assessmentPath(ownedStudent, 3, 'A')).expect(200)).body.data.assessment) {
           await saveMarks(amina, ownedStudent, FULL_MARKS, 3, 'A').expect(200);
         }
-        await assignments.unassign('Amina Yusuf', 3, 'A');
+
+        await amina.agent.get('/api/students?classLevel=3&section=A').expect(200);
+        await omar.agent.get('/api/students?classLevel=3&section=A').expect(403);
         await assignments.assign('Omar Farah', 3, 'A');
+        await expect(assignments.assign('Omar Farah', 3, 'A')).rejects.toMatchObject({ code: 'CLASS_SECTION_ASSIGNED' });
 
-        await amina.agent.get('/api/students?classLevel=3&section=A').expect(403);
-        await amina.agent.get(assessmentPath(ownedStudent, 3, 'A')).expect(404);
-        await saveMarks(amina, ownedStudent, FULL_MARKS, 3, 'A').expect(404);
-        await amina.agent.get('/api/students/export?classLevel=3&section=A').expect(403);
-        await amina.agent.get('/api/assessments/export?classLevel=3&section=A').expect(403);
-
+        const sharedAssignments = await assignments.list();
+        expect(sharedAssignments.filter((a) => a.classLevel === 3 && a.section === 'A').map((a) => a.teacherName)).toEqual([
+          'Amina Yusuf',
+          'Omar Farah',
+        ]);
         const roster = await omar.agent.get('/api/students?classLevel=3&section=A&pageSize=200').expect(200);
         expect(roster.body.meta.total).toBeGreaterThan(0);
         expect(roster.body.data.every((row: { classLevel: number; section: string }) => row.classLevel === 3 && row.section === 'A')).toBe(true);
+        expect(new Set(roster.body.data.map((row: { studentId: number }) => row.studentId)).size).toBe(roster.body.data.length);
         const oldRecord = await omar.agent.get(assessmentPath(ownedStudent, 3, 'A')).expect(200);
         expect(oldRecord.body.data.assessment).toBeNull();
         const saved = await saveMarks(omar, ownedStudent, FULL_MARKS, 3, 'A').expect(200);
         expect(saved.body.data.assessment.createdBy).toBe('Omar Farah');
         const visibleToOwner = await omar.agent.get(assessmentPath(ownedStudent, 3, 'A')).expect(200);
         expect(visibleToOwner.body.data.assessment.totalMarks).toBe(30);
-        const oldOwnerCannotRead = await amina.agent.get(assessmentPath(ownedStudent, 3, 'A')).expect(404);
-        expect(oldOwnerCannotRead.body.error.code).toBe('STUDENT_NOT_FOUND');
+        const aminaRecords = await amina.agent.get('/api/assessments?classLevel=3&section=A&pageSize=200').expect(200);
+        expect(aminaRecords.body.data.some((row: { createdBy: string }) => row.createdBy === 'Amina Yusuf')).toBe(true);
+        expect(aminaRecords.body.data.every((row: { createdBy: string }) => row.createdBy === 'Amina Yusuf')).toBe(true);
         const [{ n: distinctOwners }] = await ds.query(
           `SELECT COUNT(DISTINCT teacher_id)::int n FROM assessments a JOIN students s ON s.id=a.student_id WHERE s.student_id=$1`,
           [ownedStudent],
@@ -818,8 +822,9 @@ describe('Classes Data Entry Portal (end to end, real PostgreSQL + workbook)', (
         expect(sheet.getRow(2).getCell(3).value).toBe(3);
         expect(sheet.getRow(2).getCell(4).value).toBe('A');
         expect(sheet.getRow(2).getCell(14).value).toBe('Omar Farah');
-        const hiddenFromOther = await amina.agent.get(`/api/students?search=${ownedStudent}`).expect(200);
-        expect(hiddenFromOther.body.data).toEqual([]);
+        await assignments.unassign('Amina Yusuf', 3, 'A');
+        await amina.agent.get('/api/students?classLevel=3&section=A').expect(403);
+        await omar.agent.get('/api/students?classLevel=3&section=A').expect(200);
       });
     });
   });

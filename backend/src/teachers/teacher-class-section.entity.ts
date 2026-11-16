@@ -1,4 +1,4 @@
-import { Check, Column, Entity, JoinColumn, ManyToOne, PrimaryColumn } from 'typeorm';
+import { Check, Entity, JoinColumn, ManyToOne, PrimaryColumn } from 'typeorm';
 import type { Relation } from 'typeorm';
 import { Teacher } from './teacher.entity';
 
@@ -12,7 +12,7 @@ export class TeacherClassSection {
   @PrimaryColumn({ type: 'varchar', length: 1 })
   section: string;
 
-  @Column({ name: 'teacher_id', type: 'uuid' })
+  @PrimaryColumn({ name: 'teacher_id', type: 'uuid' })
   teacherRefId: string;
 
   @ManyToOne(() => Teacher, { nullable: false, onDelete: 'RESTRICT' })

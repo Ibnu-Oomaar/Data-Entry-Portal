@@ -57,7 +57,8 @@ export class TeacherClassSectionsService {
       .leftJoin(Teacher, 'teacher', 'teacher.id = assignment.teacher_id')
       .distinct(true)
       .orderBy('student.class_level', 'ASC')
-      .addOrderBy('student.section', 'ASC');
+      .addOrderBy('student.section', 'ASC')
+      .addOrderBy('teacher.full_name', 'ASC');
     return roster.getRawMany();
   }
 
@@ -68,12 +69,11 @@ export class TeacherClassSectionsService {
     if (!(await this.students.existsBy({ classLevel, section }))) {
       throw new AppException(HttpStatus.NOT_FOUND, 'CLASS_SECTION_NOT_FOUND', `Class ${classLevel}, section ${section} does not exist in the student roster.`);
     }
-    if (await this.assignments.existsBy({ classLevel, section })) {
-      const current = await this.assignments.findOneOrFail({ where: { classLevel, section }, relations: { teacher: true } });
+    if (await this.assignments.existsBy({ classLevel, section, teacherRefId: teacher.id })) {
       throw new AppException(
         HttpStatus.CONFLICT,
         'CLASS_SECTION_ASSIGNED',
-        `Class ${classLevel}, section ${section} is already assigned to ${current.teacher.fullName}. Unassign it before changing ownership.`,
+        `Class ${classLevel}, section ${section} is already assigned to ${teacher.fullName}.`,
       );
     }
     await this.assignments.save(this.assignments.create({ classLevel, section, teacherRefId: teacher.id }));
@@ -82,8 +82,8 @@ export class TeacherClassSectionsService {
   async unassign(rawName: string, classLevel: number, section: string): Promise<void> {
     const teacher = await this.teachers.findOne({ where: { normalizedName: normalizePersonName(rawName) } });
     if (!teacher) throw new AppException(HttpStatus.NOT_FOUND, 'TEACHER_NOT_FOUND', `No teacher named "${rawName}".`);
-    const assignment = await this.assignments.findOne({ where: { classLevel, section } });
-    if (!assignment || assignment.teacherRefId !== teacher.id) {
+    const assignment = await this.assignments.findOne({ where: { classLevel, section, teacherRefId: teacher.id } });
+    if (!assignment) {
       throw new AppException(HttpStatus.NOT_FOUND, 'CLASS_SECTION_ASSIGNMENT_NOT_FOUND', `Class ${classLevel}, section ${section} is not assigned to ${teacher.fullName}.`);
     }
     await this.assignments.remove(assignment);
