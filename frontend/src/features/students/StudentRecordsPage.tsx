@@ -5,6 +5,7 @@ import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Avatar } from '@/components/common/Avatar';
 import { PageHeader } from '@/components/common/PageHeader';
+import { ExcelExportButton } from '@/components/common/ExcelExportButton';
 import { EmptyState, ErrorState, RowsSkeleton } from '@/components/common/states';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { Button } from '@/components/ui/button';
@@ -67,11 +68,14 @@ export function StudentRecordsPage() {
         title="Students"
         description={meta ? `${meta.total} ${meta.total === 1 ? 'student' : 'students'}${summary ? ` · ${summary}` : ' registered'}` : 'Loading…'}
         actions={
-          <Button asChild>
-            <Link to={`/teacher/marks${filters.classLevel ? `?class=${filters.classLevel}${filters.section ? `&section=${filters.section}` : ''}` : ''}`}>
-              <PencilLine aria-hidden /> Enter marks
-            </Link>
-          </Button>
+          <>
+            <ExcelExportButton download={() => studentsApi.export(query)} filename="student-records.xlsx" />
+            <Button asChild>
+              <Link to={`/teacher/marks${filters.classLevel ? `?class=${filters.classLevel}${filters.section ? `&section=${filters.section}` : ''}` : ''}`}>
+                <PencilLine aria-hidden /> Enter marks
+              </Link>
+            </Button>
+          </>
         }
       />
 

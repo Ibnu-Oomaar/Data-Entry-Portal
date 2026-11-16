@@ -1,4 +1,5 @@
-import { Body, Controller, Get, HttpStatus, Param, ParseIntPipe, Put, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpStatus, Param, ParseIntPipe, Put, Query, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { CurrentStudent, CurrentTeacher, Roles } from '../auth/decorators/auth.decorators';
 import type { StudentUser, TeacherUser } from '../auth/auth.types';
 import { AppException } from '../common/errors/app.exception';
@@ -17,13 +18,22 @@ export class AssessmentsController {
   constructor(private readonly assessments: AssessmentsService) {}
 
   @Get()
-  list(@Query() query: ListStudentsDto) {
-    return this.assessments.list(query);
+  list(@Query() query: ListStudentsDto, @CurrentTeacher() teacher: TeacherUser) {
+    return this.assessments.list(query, teacher.id);
   }
 
   @Get('student/:studentId')
-  get(@Param('studentId', studentIdPipe) studentId: number) {
-    return this.assessments.getForTeacher(studentId);
+  get(@Param('studentId', studentIdPipe) studentId: number, @CurrentTeacher() teacher: TeacherUser) {
+    return this.assessments.getForTeacher(studentId, teacher.id);
+  }
+
+  @Get('export')
+  async export(@Query() query: ListStudentsDto, @CurrentTeacher() teacher: TeacherUser, @Res() response: Response): Promise<void> {
+    const workbook = await this.assessments.export(query, teacher.id);
+    response
+      .type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      .attachment(this.assessments.exportFilename(query))
+      .send(workbook);
   }
 
   /** Create-or-update. Idempotent for identical payloads; guarded by expectedVersion. */

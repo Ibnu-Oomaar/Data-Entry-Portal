@@ -1,7 +1,8 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, QueryFailedError, Repository } from 'typeorm';
+import { DataSource, QueryFailedError, Repository, SelectQueryBuilder } from 'typeorm';
 import { COMPONENT_KEYS, ComponentKey, MarksInput } from '../common/constants/assessment';
+import { createExcelWorkbook } from '../common/excel-workbook';
 import { AppException } from '../common/errors/app.exception';
 import { PaginatedResult } from '../common/pagination';
 import { assertGroupLimits, computeAssessment, sameMarks } from '../common/utils/marks';
@@ -9,6 +10,7 @@ import { escapeLike } from '../common/utils/normalize';
 import { NAME_ORDER_SQL, applyOrder } from '../common/utils/order';
 import { ListStudentsDto } from '../students/dto/list-students.dto';
 import { StudentsService } from '../students/students.service';
+import { TeacherClassSection } from '../teachers/teacher-class-section.entity';
 import { Assessment } from './assessment.entity';
 import { AssessmentView, StudentSummary, marksOf, toAssessmentView, toStudentSummary } from './assessment.view';
 import { SaveAssessmentDto } from './dto/save-assessment.dto';
@@ -68,8 +70,9 @@ export class AssessmentsService {
   ) {}
 
   /** Teacher view of one student: identity + current assessment (or null if nothing is entered yet). */
-  async getForTeacher(studentId: number): Promise<StudentAssessment> {
+  async getForTeacher(studentId: number, teacherId: string): Promise<StudentAssessment> {
     const student = await this.students.findBySchoolIdOrFail(studentId);
+    await this.students.assertTeacherAccess(student, teacherId);
     const a = await this.repo.findOne({ where: { studentRefId: student.id }, relations: { createdBy: true, updatedBy: true } });
     return { student: toStudentSummary(student), assessment: a ? toAssessmentView(a, { audit: true }) : null };
   }
@@ -90,6 +93,7 @@ export class AssessmentsService {
    */
   async save(studentId: number, dto: SaveAssessmentDto, teacherId: string): Promise<SaveResult> {
     const student = await this.students.findBySchoolIdOrFail(studentId);
+    await this.students.assertTeacherAccess(student, teacherId);
     const marks = {} as MarksInput;
     for (const k of COMPONENT_KEYS) marks[k] = dto[k as ComponentKey];
     const computed = computeAssessment(marks);
@@ -173,32 +177,31 @@ export class AssessmentsService {
   }
 
   /** Assessment records page: students who have marks entered, with all seven components and audit info. */
-  async list(q: ListStudentsDto): Promise<PaginatedResult<AssessmentRecordRow>> {
-    const page = q.page ?? 1;
-    const pageSize = q.pageSize ?? 25;
-    const sortBy = q.sortBy && q.sortBy !== 'classSection' ? q.sortBy : 'updatedAt';
-    const dir = (q.sortDir ?? (sortBy === 'updatedAt' ? 'desc' : 'asc')).toUpperCase() as 'ASC' | 'DESC';
+  private filtered(q: ListStudentsDto, teacherId: string): SelectQueryBuilder<Assessment> {
+    const qb = this.repo
+      .createQueryBuilder('a')
+      .innerJoin('a.student', 's')
+      .innerJoin(
+        TeacherClassSection,
+        'access',
+        'access.class_level = s.class_level AND access.section = s.section AND access.teacher_id = :teacherId',
+        { teacherId },
+      )
+      .innerJoin('a.createdBy', 'cb')
+      .innerJoin('a.updatedBy', 'ub');
+    if (q.classLevel !== undefined) qb.andWhere('s.class_level = :classLevel', { classLevel: q.classLevel });
+    if (q.section) qb.andWhere('s.section = :section', { section: q.section });
+    if (q.status === 'pending') qb.andWhere('1 = 0');
+    else if (q.status) qb.andWhere('a.status = :status', { status: q.status });
+    if (q.search) {
+      const term = `%${escapeLike(q.search)}%`;
+      qb.andWhere(`(s.name ILIKE :term ESCAPE '\\' OR CAST(s.student_id AS TEXT) LIKE :term ESCAPE '\\')`, { term });
+    }
+    return qb;
+  }
 
-    const base = () => {
-      const qb = this.repo
-        .createQueryBuilder('a')
-        .innerJoin('a.student', 's')
-        .innerJoin('a.createdBy', 'cb')
-        .innerJoin('a.updatedBy', 'ub');
-      if (q.classLevel !== undefined) qb.andWhere('s.class_level = :classLevel', { classLevel: q.classLevel });
-      if (q.section) qb.andWhere('s.section = :section', { section: q.section });
-      if (q.status === 'pending') qb.andWhere('1 = 0'); // records exist only for draft/submitted
-      else if (q.status) qb.andWhere('a.status = :status', { status: q.status });
-      if (q.search) {
-        const term = `%${escapeLike(q.search)}%`;
-        qb.andWhere(`(s.name ILIKE :term ESCAPE '\\' OR CAST(s.student_id AS TEXT) LIKE :term ESCAPE '\\')`, { term });
-      }
-      return qb;
-    };
-
-    const total = await base().getCount();
-    const qb = base()
-      .select('s.student_id', 'studentId')
+  private selectRecordColumns(qb: SelectQueryBuilder<Assessment>): void {
+    qb.select('s.student_id', 'studentId')
       .addSelect('s.name', 'name')
       .addSelect('s.class_level', 'classLevel')
       .addSelect('s.section', 'section')
@@ -210,6 +213,9 @@ export class AssessmentsService {
       .addSelect('a.created_at', 'createdAt')
       .addSelect('a.updated_at', 'updatedAt');
     for (const k of COMPONENT_KEYS) qb.addSelect(`a.${snake(k)}`, k);
+  }
+
+  private orderRecords(qb: SelectQueryBuilder<Assessment>, sortBy: string, dir: 'ASC' | 'DESC'): void {
     applyOrder(qb, [
       [sortBy === 'name' ? NAME_ORDER_SQL : RECORD_SORT_SQL[sortBy], dir, sortBy === 'totalMarks' ? 'NULLS LAST' : undefined],
       ['s.class_level', 'ASC'],
@@ -217,6 +223,19 @@ export class AssessmentsService {
       [NAME_ORDER_SQL, 'ASC'],
       ['s.student_id', 'ASC'],
     ]);
+  }
+
+  async list(q: ListStudentsDto, teacherId: string): Promise<PaginatedResult<AssessmentRecordRow>> {
+    await this.students.ensureTeacherFilterAccess(teacherId, q.classLevel, q.section);
+    const page = q.page ?? 1;
+    const pageSize = q.pageSize ?? 25;
+    const sortBy = q.sortBy && q.sortBy !== 'classSection' ? q.sortBy : 'updatedAt';
+    const dir = (q.sortDir ?? (sortBy === 'updatedAt' ? 'desc' : 'asc')).toUpperCase() as 'ASC' | 'DESC';
+
+    const total = await this.filtered(q, teacherId).getCount();
+    const qb = this.filtered(q, teacherId);
+    this.selectRecordColumns(qb);
+    this.orderRecords(qb, sortBy, dir);
     qb.offset((page - 1) * pageSize).limit(pageSize);
 
     const rows = await qb.getRawMany();
@@ -239,5 +258,51 @@ export class AssessmentsService {
       };
     });
     return new PaginatedResult(items, total, page, pageSize);
+  }
+
+  async export(q: ListStudentsDto, teacherId: string): Promise<Buffer> {
+    await this.students.ensureTeacherFilterAccess(teacherId, q.classLevel, q.section);
+    const sortBy = q.sortBy && q.sortBy !== 'classSection' ? q.sortBy : 'updatedAt';
+    const dir = (q.sortDir ?? (sortBy === 'updatedAt' ? 'desc' : 'asc')).toUpperCase() as 'ASC' | 'DESC';
+    const qb = this.filtered(q, teacherId);
+    this.selectRecordColumns(qb);
+    this.orderRecords(qb, sortBy, dir);
+    const rows = await qb.getRawMany();
+    const columns = [
+      { header: 'Student ID', key: 'studentId', width: 14 },
+      { header: 'Student name', key: 'name', width: 32 },
+      { header: 'Class', key: 'classLevel', width: 10 },
+      { header: 'Section', key: 'section', width: 10 },
+      ...COMPONENT_KEYS.map((key) => ({ header: key.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase()), key, width: 20 })),
+      { header: 'Total marks', key: 'totalMarks', width: 14 },
+      { header: 'Status', key: 'status', width: 14 },
+      { header: 'Created by', key: 'createdBy', width: 22 },
+      { header: 'Updated by', key: 'updatedBy', width: 22 },
+      { header: 'Created at', key: 'createdAt', width: 24 },
+      { header: 'Updated at', key: 'updatedAt', width: 24 },
+      { header: 'Version', key: 'version', width: 12 },
+    ];
+    const data = rows.map((row): Record<string, string | number | null> => {
+      const item: Record<string, string | number | null> = {
+        studentId: Number(row.studentId),
+        name: row.name,
+        classLevel: Number(row.classLevel),
+        section: row.section,
+        totalMarks: Number(row.totalMarks),
+        status: row.status,
+        createdBy: row.createdBy,
+        updatedBy: row.updatedBy,
+        createdAt: new Date(row.createdAt).toISOString(),
+        updatedAt: new Date(row.updatedAt).toISOString(),
+        version: Number(row.version),
+      };
+      for (const key of COMPONENT_KEYS) item[key] = row[key] == null ? null : Number(row[key]);
+      return item;
+    });
+    return createExcelWorkbook('Assessments', columns, data);
+  }
+
+  exportFilename(q: Pick<ListStudentsDto, 'classLevel' | 'section'>): string {
+    return `assessments${q.classLevel ? `-class-${q.classLevel}` : ''}${q.section ? `-section-${q.section}` : ''}.xlsx`;
   }
 }

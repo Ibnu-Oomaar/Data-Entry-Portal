@@ -9,8 +9,8 @@ export class StatsController {
   constructor(private readonly stats: StatsService) {}
 
   @Get('overview')
-  overview() {
-    return this.stats.overview();
+  overview(@CurrentTeacher() teacher: TeacherUser) {
+    return this.stats.overview(teacher.id);
   }
 
   @Get('me')

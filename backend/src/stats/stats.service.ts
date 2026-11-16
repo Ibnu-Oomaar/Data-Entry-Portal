@@ -57,7 +57,7 @@ export class StatsService {
   ) {}
 
   /** Teacher dashboard numbers. Everything is computed directly from PostgreSQL. */
-  async overview(): Promise<Overview> {
+  async overview(teacherId: string): Promise<Overview> {
     const [[t], bandRows, activityRows, structure] = await Promise.all([
       this.dataSource.query(`
         SELECT COUNT(*)                                                    AS students,
@@ -66,17 +66,33 @@ export class StatsService {
                ROUND(AVG(a.total_marks) FILTER (WHERE a.status = 'submitted'), 2) AS average,
                MAX(a.total_marks)       FILTER (WHERE a.status = 'submitted')     AS highest,
                MIN(a.total_marks)       FILTER (WHERE a.status = 'submitted')     AS lowest
-          FROM students s LEFT JOIN assessments a ON a.student_id = s.id`),
+          FROM students s
+          INNER JOIN teacher_class_sections access
+            ON access.class_level = s.class_level
+           AND access.section = s.section
+           AND access.teacher_id = $1
+          LEFT JOIN assessments a ON a.student_id = s.id`, [teacherId]),
       this.dataSource.query(`
-        SELECT LEAST(FLOOR(total_marks / 5), 5)::int AS band, COUNT(*) AS n
-          FROM assessments WHERE status = 'submitted' GROUP BY 1`),
+        SELECT LEAST(FLOOR(a.total_marks / 5), 5)::int AS band, COUNT(*) AS n
+          FROM assessments a
+          JOIN students s ON s.id = a.student_id
+          JOIN teacher_class_sections access
+            ON access.class_level = s.class_level
+           AND access.section = s.section
+           AND access.teacher_id = $1
+         WHERE a.status = 'submitted'
+         GROUP BY 1`, [teacherId]),
       this.dataSource.query(`
         SELECT s.student_id, s.name, s.class_level, s.section, a.status, a.total_marks, a.version, a.updated_at, t.full_name AS teacher
           FROM assessments a
           JOIN students s ON s.id = a.student_id
+          JOIN teacher_class_sections access
+            ON access.class_level = s.class_level
+           AND access.section = s.section
+           AND access.teacher_id = $1
           JOIN teachers t ON t.id = a.updated_by
-         ORDER BY a.updated_at DESC LIMIT 8`),
-      this.students.structure(),
+         ORDER BY a.updated_at DESC LIMIT 8`, [teacherId]),
+      this.students.structure(teacherId),
     ]);
 
     const students = Number(t.students);
@@ -127,12 +143,22 @@ export class StatsService {
       `SELECT COUNT(*) FILTER (WHERE created_by = $1) AS created,
               COUNT(*) FILTER (WHERE updated_by = $1) AS last_edited,
               MAX(updated_at) FILTER (WHERE updated_by = $1) AS last_at
-         FROM assessments`,
+         FROM assessments a
+         JOIN students s ON s.id = a.student_id
+         JOIN teacher_class_sections access
+           ON access.class_level = s.class_level
+          AND access.section = s.section
+          AND access.teacher_id = $1`,
       [teacherId],
     );
     const recent = await this.dataSource.query(
       `SELECT s.student_id, s.name, s.class_level, s.section, a.status, a.total_marks, a.updated_at
-         FROM assessments a JOIN students s ON s.id = a.student_id
+         FROM assessments a
+         JOIN students s ON s.id = a.student_id
+         JOIN teacher_class_sections access
+           ON access.class_level = s.class_level
+          AND access.section = s.section
+          AND access.teacher_id = $1
         WHERE a.updated_by = $1 ORDER BY a.updated_at DESC LIMIT 5`,
       [teacherId],
     );

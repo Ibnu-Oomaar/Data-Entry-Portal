@@ -38,6 +38,7 @@ export const schoolApi = {
 export const studentsApi = {
   list: (q: StudentQuery) => api.get<Envelope<StudentListItem[]>>('/students', { params: clean(q) }).then(unwrapPage),
   structure: () => api.get<Envelope<ClassSummary[]>>('/students/structure').then(unwrap),
+  export: (q: StudentQuery) => api.get<Blob>('/students/export', { params: clean(q), responseType: 'blob' }).then((res) => res.data),
 };
 
 export const assessmentsApi = {
@@ -45,6 +46,7 @@ export const assessmentsApi = {
   save: (studentId: number, payload: SaveAssessmentPayload) =>
     api.put<Envelope<SaveResult>>(`/assessments/student/${studentId}`, payload).then(unwrap),
   list: (q: StudentQuery) => api.get<Envelope<AssessmentRecordRow[]>>('/assessments', { params: clean(q) }).then(unwrapPage),
+  export: (q: StudentQuery) => api.get<Blob>('/assessments/export', { params: clean(q), responseType: 'blob' }).then((res) => res.data),
   own: () => api.get<Envelope<StudentAssessment>>('/me/assessment').then(unwrap),
 };
 

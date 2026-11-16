@@ -1,8 +1,10 @@
 import { INestApplication } from '@nestjs/common';
+import ExcelJS from 'exceljs';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { StudentImportService } from '../src/students/import/student-import.service';
 import { TeachersService } from '../src/teachers/teachers.service';
+import { TeacherClassSectionsService } from '../src/teachers/teacher-class-sections.service';
 import { FULL_MARKS, Session, WORKBOOK, bootApp, saveMarks, studentSession, teacherSession } from './helpers';
 
 const ci = (x: string, y: string) => (x.toLowerCase() < y.toLowerCase() ? -1 : x.toLowerCase() > y.toLowerCase() ? 1 : 0);
@@ -27,6 +29,13 @@ describe('Classes Data Entry Portal (end to end, real PostgreSQL + workbook)', (
     await teachers.provision('Omar Farah');
     await teachers.provision('Hassan Retired');
     await teachers.setActive('Hassan Retired', false);
+
+    const assignments = app.get(TeacherClassSectionsService);
+    expect(await assignments.list()).toHaveLength(0);
+    const sections: Array<{ class_level: number; section: string }> = await ds.query(
+      `SELECT DISTINCT class_level, section FROM students ORDER BY class_level, section`,
+    );
+    for (const section of sections) await assignments.assign('Amina Yusuf', section.class_level, section.section);
 
     const rows: Array<{ student_id: number }> = await ds.query(
       `SELECT student_id FROM students WHERE class_level = 1 AND section = 'A' ORDER BY name LIMIT 3`,
@@ -470,21 +479,21 @@ describe('Classes Data Entry Portal (end to end, real PostgreSQL + workbook)', (
 
   // ------------------------------------------------------ updates & integrity
   describe('Updates, concurrency and audit trail', () => {
-    it('updates with the current version, bumps it, and records WHO changed it (creator unchanged)', async () => {
-      const res = await saveMarks(omar, ids.a, {
+    it('updates within the assigned section and records WHO changed it', async () => {
+      const res = await saveMarks(amina, ids.a, {
         chapter1Notes: 2, chapter1Exercises: 6, chapter1Assignment: 5,
         chapter2Notes: 2, chapter2Exercises: 5, chapter2Assignment: 4, textbook: 3,
         expectedVersion: 1,
       }).expect(200);
       expect(res.body.data).toMatchObject({ created: false, unchanged: false });
-      expect(res.body.data.assessment).toMatchObject({ totalMarks: 27, version: 2, createdBy: 'Amina Yusuf', updatedBy: 'Omar Farah' });
+      expect(res.body.data.assessment).toMatchObject({ totalMarks: 27, version: 2, createdBy: 'Amina Yusuf', updatedBy: 'Amina Yusuf' });
     });
 
     it('refuses to overwrite newer data with a stale form (HTTP 409)', async () => {
       const res = await saveMarks(amina, ids.a, { ...FULL_MARKS, chapter1Notes: 1, expectedVersion: 1 }).expect(409);
       expect(res.body.error.code).toBe('STALE_ASSESSMENT');
       const now = await amina.agent.get(`/api/assessments/student/${ids.a}`).expect(200);
-      expect(now.body.data.assessment).toMatchObject({ totalMarks: 27, version: 2, updatedBy: 'Omar Farah' });
+      expect(now.body.data.assessment).toMatchObject({ totalMarks: 27, version: 2, updatedBy: 'Amina Yusuf' });
     });
 
     it('does not let a blind "create" overwrite an existing record', async () => {
@@ -503,7 +512,7 @@ describe('Classes Data Entry Portal (end to end, real PostgreSQL + workbook)', (
       const [{ student_id }] = await ds.query(`SELECT student_id FROM students WHERE class_level = 3 AND section = 'A' ORDER BY name LIMIT 1`);
       const one = { chapter1Notes: 1, chapter1Exercises: 1, chapter1Assignment: 1, chapter2Notes: 1, chapter2Exercises: 1, chapter2Assignment: 1, textbook: 1 };
       const two = { ...one, textbook: 2 };
-      const results = await Promise.all([saveMarks(amina, student_id, one), saveMarks(omar, student_id, two)]);
+      const results = await Promise.all([saveMarks(amina, student_id, one), saveMarks(amina, student_id, two)]);
       const statuses = results.map((r) => r.status).sort();
       expect(statuses).toEqual([200, 409]);
       const [{ n }] = await ds.query(`SELECT COUNT(*)::int n FROM assessments a JOIN students s ON s.id=a.student_id WHERE s.student_id=$1`, [student_id]);
@@ -582,7 +591,7 @@ describe('Classes Data Entry Portal (end to end, real PostgreSQL + workbook)', (
       const dates = res.body.data.map((r: { updatedAt: string }) => r.updatedAt);
       expect(dates).toEqual([...dates].sort().reverse());
       const row = res.body.data.find((r: { studentId: number }) => r.studentId === ids.a);
-      expect(row).toMatchObject({ totalMarks: 27, status: 'submitted', createdBy: 'Amina Yusuf', updatedBy: 'Omar Farah' });
+      expect(row).toMatchObject({ totalMarks: 27, status: 'submitted', createdBy: 'Amina Yusuf', updatedBy: 'Amina Yusuf' });
       expect(Object.keys(row.marks)).toHaveLength(7);
       const drafts = await amina.agent.get('/api/assessments?status=draft').expect(200);
       expect(drafts.body.data.every((r: { status: string }) => r.status === 'draft')).toBe(true);
@@ -590,6 +599,57 @@ describe('Classes Data Entry Portal (end to end, real PostgreSQL + workbook)', (
       const sorted = await amina.agent.get('/api/assessments?sortBy=totalMarks&sortDir=desc').expect(200);
       const totals = sorted.body.data.map((r: { totalMarks: number }) => r.totalMarks);
       expect(totals).toEqual([...totals].sort((x, y) => y - x));
+    });
+
+    it('downloads complete filtered student and assessment workbooks', async () => {
+      const parseWorkbook = async (response: Buffer) => {
+        const workbook = new ExcelJS.Workbook();
+        const bytes = new Uint8Array(response.byteLength);
+        bytes.set(response);
+        await workbook.xlsx.load(bytes.buffer);
+        return workbook.worksheets[0];
+      };
+      const students = await amina.agent
+        .get('/api/students/export?classLevel=1&section=A')
+        .buffer()
+        .parse((res, callback) => {
+          const chunks: Buffer[] = [];
+          res.on('data', (chunk: Buffer) => chunks.push(chunk));
+          res.on('end', () => callback(null, Buffer.concat(chunks)));
+        })
+        .expect(200)
+        .expect('Content-Type', /spreadsheetml\.sheet/);
+      expect(students.headers['content-disposition']).toContain('students-class-1-section-A.xlsx');
+      const studentSheet = await parseWorkbook(students.body);
+      expect(studentSheet.rowCount).toBe(57);
+      expect(studentSheet.getRow(1).getCell(1).value).toBe('Student ID');
+      for (let row = 2; row <= studentSheet.rowCount; row++) {
+        expect(studentSheet.getRow(row).getCell(3).value).toBe(1);
+        expect(studentSheet.getRow(row).getCell(4).value).toBe('A');
+      }
+      const exportedStudent = Array.from({ length: studentSheet.rowCount - 1 }, (_, index) => studentSheet.getRow(index + 2))
+        .find((row) => row.getCell(1).value === ids.a);
+      expect(exportedStudent?.getCell(5).value).toBe('submitted');
+      expect(exportedStudent?.getCell(13).value).toBe(27);
+
+      const assessments = await amina.agent
+        .get('/api/assessments/export?classLevel=1&section=A&status=submitted')
+        .buffer()
+        .parse((res, callback) => {
+          const chunks: Buffer[] = [];
+          res.on('data', (chunk: Buffer) => chunks.push(Buffer.from(chunk)));
+          res.on('end', () => callback(null, Buffer.concat(chunks)));
+        })
+        .expect(200)
+        .expect('Content-Type', /spreadsheetml\.sheet/);
+      const assessmentSheet = await parseWorkbook(assessments.body);
+      expect(assessmentSheet.rowCount).toBeGreaterThan(1);
+      expect(assessmentSheet.getRow(1).values).toContain('Total marks');
+      for (let row = 2; row <= assessmentSheet.rowCount; row++) {
+        expect(assessmentSheet.getRow(row).getCell(3).value).toBe(1);
+        expect(assessmentSheet.getRow(row).getCell(4).value).toBe('A');
+        expect(assessmentSheet.getRow(row).getCell(13).value).toBe('submitted');
+      }
     });
 
     it('overview statistics are computed from real records', async () => {
@@ -635,7 +695,7 @@ describe('Classes Data Entry Portal (end to end, real PostgreSQL + workbook)', (
       const a = (await amina.agent.get('/api/stats/me').expect(200)).body.data;
       const o = (await omar.agent.get('/api/stats/me').expect(200)).body.data;
       expect(a.assessmentsCreated).toBeGreaterThanOrEqual(3);
-      expect(o.assessmentsLastEditedByMe).toBeGreaterThanOrEqual(1); // Omar updated ids.a
+      expect(o).toMatchObject({ assessmentsCreated: 0, assessmentsLastEditedByMe: 0, recent: [] });
       expect(a.assessmentsCreated + o.assessmentsCreated).toBe((await ds.query(`SELECT COUNT(*)::int n FROM assessments`))[0].n);
       expect(a.recent.length).toBeGreaterThan(0);
     });
@@ -652,6 +712,33 @@ describe('Classes Data Entry Portal (end to end, real PostgreSQL + workbook)', (
       expect(Number(blocked.headers['retry-after'])).toBeGreaterThan(0);
       await ds.query(`DELETE FROM app_rate_limits`);
       await agent.post('/api/auth/teacher/login').send({ name: 'Amina Yusuf' }).expect(200);
+    });
+
+    describe('Teacher class/section isolation', () => {
+      it('restricts each teacher to their explicitly assigned class/section across reads, writes and exports', async () => {
+        const assignments = app.get(TeacherClassSectionsService);
+        await assignments.unassign('Amina Yusuf', 3, 'A');
+        await assignments.assign('Omar Farah', 3, 'A');
+        const [{ student_id: ownedStudent }] = await ds.query(
+          `SELECT student_id FROM students WHERE class_level = 3 AND section = 'A' ORDER BY student_id LIMIT 1`,
+        );
+
+        await amina.agent.get('/api/students?classLevel=3&section=A').expect(403);
+        await amina.agent.get(`/api/assessments/student/${ownedStudent}`).expect(404);
+        await saveMarks(amina, ownedStudent, FULL_MARKS).expect(404);
+        await amina.agent.get('/api/students/export?classLevel=3&section=A').expect(403);
+        await amina.agent.get('/api/assessments/export?classLevel=3&section=A').expect(403);
+
+        const roster = await omar.agent.get('/api/students?classLevel=3&section=A&pageSize=200').expect(200);
+        expect(roster.body.meta.total).toBeGreaterThan(0);
+        expect(roster.body.data.every((row: { classLevel: number; section: string }) => row.classLevel === 3 && row.section === 'A')).toBe(true);
+        const saved = await saveMarks(omar, ownedStudent, FULL_MARKS).expect(200);
+        expect(saved.body.data.assessment.createdBy).toBe('Omar Farah');
+        const visibleToOwner = await omar.agent.get(`/api/assessments/student/${ownedStudent}`).expect(200);
+        expect(visibleToOwner.body.data.assessment.totalMarks).toBe(30);
+        const hiddenFromOther = await amina.agent.get(`/api/students?search=${ownedStudent}`).expect(200);
+        expect(hiddenFromOther.body.data).toEqual([]);
+      });
     });
   });
 });

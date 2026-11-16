@@ -2,6 +2,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { ClipboardList, PencilLine, SearchX } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
+import { ExcelExportButton } from '@/components/common/ExcelExportButton';
 import { EmptyState, ErrorState, RowsSkeleton } from '@/components/common/states';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { Button } from '@/components/ui/button';
@@ -38,11 +39,14 @@ export function AssessmentRecordsPage() {
         title="Assessment records"
         description={meta ? `${meta.total} saved ${meta.total === 1 ? 'assessment' : 'assessments'}. Completed means all seven parts are entered.` : 'Loading…'}
         actions={
-          <Button asChild>
-            <Link to="/teacher/marks">
-              <PencilLine aria-hidden /> Enter marks
-            </Link>
-          </Button>
+          <>
+            <ExcelExportButton download={() => assessmentsApi.export(query)} filename="assessment-records.xlsx" />
+            <Button asChild>
+              <Link to="/teacher/marks">
+                <PencilLine aria-hidden /> Enter marks
+              </Link>
+            </Button>
+          </>
         }
       />
 
