@@ -14,9 +14,6 @@ export class Teacher {
   @Column({ name: 'normalized_name', type: 'varchar', length: 150 })
   normalizedName: string;
 
-  @Column({ name: 'password_hash', type: 'varchar', length: 200, nullable: true, select: false })
-  passwordHash: string | null;
-
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;
 
