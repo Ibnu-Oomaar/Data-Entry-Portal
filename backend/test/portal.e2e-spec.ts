@@ -31,11 +31,14 @@ describe('Classes Data Entry Portal (end to end, real PostgreSQL + workbook)', (
     await teachers.setActive('Hassan Retired', false);
 
     const assignments = app.get(TeacherClassSectionsService);
-    expect(await assignments.list()).toHaveLength(0);
+    const unassigned = await assignments.list();
+    expect(unassigned).toHaveLength(11);
+    expect(unassigned.every((section) => section.teacherName === null)).toBe(true);
     const sections: Array<{ class_level: number; section: string }> = await ds.query(
       `SELECT DISTINCT class_level, section FROM students ORDER BY class_level, section`,
     );
     for (const section of sections) await assignments.assign('Amina Yusuf', section.class_level, section.section);
+    expect((await assignments.list()).every((section) => section.teacherName === 'Amina Yusuf')).toBe(true);
 
     const rows: Array<{ student_id: number }> = await ds.query(
       `SELECT student_id FROM students WHERE class_level = 1 AND section = 'A' ORDER BY name LIMIT 3`,

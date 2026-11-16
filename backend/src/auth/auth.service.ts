@@ -2,10 +2,11 @@ import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import type { Request, Response } from 'express';
 import { AppException } from '../common/errors/app.exception';
-import { APP_CONFIG, AppConfig } from '../config/configuration';
+import { APP_CONFIG } from '../config/configuration';
+import type { AppConfig } from '../config/configuration';
 import { StudentsService } from '../students/students.service';
 import { TeachersService } from '../teachers/teachers.service';
-import { AuthUser, Role } from './auth.types';
+import type { AuthUser, Role } from './auth.types';
 import { RateLimitService } from './rate-limit.service';
 import { SESSION_COOKIE } from './session.config';
 

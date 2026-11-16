@@ -2,7 +2,8 @@ import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { AppException } from '../common/errors/app.exception';
-import { APP_CONFIG, AppConfig } from '../config/configuration';
+import { APP_CONFIG } from '../config/configuration';
+import type { AppConfig } from '../config/configuration';
 
 @Injectable()
 export class RateLimitService {

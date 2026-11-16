@@ -2,7 +2,8 @@ import { Controller, Get, Inject, ServiceUnavailableException } from '@nestjs/co
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { Public } from './auth/decorators/auth.decorators';
-import { APP_CONFIG, AppConfig } from './config/configuration';
+import { APP_CONFIG } from './config/configuration';
+import type { AppConfig } from './config/configuration';
 
 @Controller()
 export class AppController {

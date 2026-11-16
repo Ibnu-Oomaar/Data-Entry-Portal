@@ -1,6 +1,6 @@
 import { Body, Controller, Get, HttpCode, Post, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { AuthUser } from './auth.types';
+import type { AuthUser } from './auth.types';
 import { AuthService } from './auth.service';
 import { CurrentUser, Public, Roles } from './decorators/auth.decorators';
 import { StudentLoginDto, TeacherLoginDto } from './dto/login.dto';

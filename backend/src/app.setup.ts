@@ -8,7 +8,8 @@ import { createSessionMiddleware } from './auth/session.config';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ResponseEnvelopeInterceptor } from './common/interceptors/response-envelope.interceptor';
 import { createValidationPipe } from './common/pipes/validation.pipe';
-import { APP_CONFIG, AppConfig } from './config/configuration';
+import { APP_CONFIG } from './config/configuration';
+import type { AppConfig } from './config/configuration';
 import { DataSource } from 'typeorm';
 
 /** Shared by main.ts and the end-to-end tests so tests exercise the real pipeline. */

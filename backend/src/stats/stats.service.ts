@@ -140,9 +140,9 @@ export class StatsService {
   /** The signed-in teacher's own data-entry footprint (profile page). */
   async teacherActivity(teacherId: string) {
     const [row] = await this.dataSource.query(
-      `SELECT COUNT(*) FILTER (WHERE created_by = $1) AS created,
-              COUNT(*) FILTER (WHERE updated_by = $1) AS last_edited,
-              MAX(updated_at) FILTER (WHERE updated_by = $1) AS last_at
+      `SELECT COUNT(*) FILTER (WHERE a.created_by = $1) AS created,
+              COUNT(*) FILTER (WHERE a.updated_by = $1) AS last_edited,
+              MAX(a.updated_at) FILTER (WHERE a.updated_by = $1) AS last_at
          FROM assessments a
          JOIN students s ON s.id = a.student_id
          JOIN teacher_class_sections access

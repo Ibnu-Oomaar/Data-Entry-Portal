@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { APP_CONFIG, AppConfig } from '../config/configuration';
+import { APP_CONFIG } from '../config/configuration';
+import type { AppConfig } from '../config/configuration';
 import { buildTypeOrmOptions } from './typeorm.options';
 
 @Module({

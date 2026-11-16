@@ -21,6 +21,7 @@ export class TeacherClassSectionsService {
 
   async assertFilterAccess(teacherId: string, classLevel?: number, section?: string): Promise<void> {
     if (classLevel === undefined && section === undefined) return;
+    if (classLevel !== undefined && section !== undefined && !(await this.students.existsBy({ classLevel, section }))) return;
     const qb = this.assignments.createQueryBuilder('assignment').where('assignment.teacher_id = :teacherId', { teacherId });
     if (classLevel !== undefined) qb.andWhere('assignment.class_level = :classLevel', { classLevel });
     if (section !== undefined) qb.andWhere('assignment.section = :section', { section });
