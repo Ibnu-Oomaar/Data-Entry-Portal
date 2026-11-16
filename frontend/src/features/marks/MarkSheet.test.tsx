@@ -37,7 +37,7 @@ const setup = (data: StudentAssessment, props: Partial<React.ComponentProps<type
   const onNext = vi.fn();
   const onClose = vi.fn();
   const onDirtyChange = vi.fn();
-  const utils = renderWithProviders(<MarkSheet studentId={9299} onNext={onNext} onClose={onClose} onDirtyChange={onDirtyChange} hasNext {...props} />);
+  const utils = renderWithProviders(<MarkSheet studentId={9299} classLevel={3} section="C" onNext={onNext} onClose={onClose} onDirtyChange={onDirtyChange} hasNext {...props} />);
   return { ...utils, onNext, onClose, onDirtyChange, user: userEvent.setup() };
 };
 
@@ -180,7 +180,7 @@ describe('MarkSheet', () => {
 
   it('loads a failure state with a retry instead of a blank screen', async () => {
     api.get.mockRejectedValue(new ApiError(0, 'NETWORK', 'Cannot reach the server. Check your connection and try again.'));
-    renderWithProviders(<MarkSheet studentId={9299} onNext={vi.fn()} onClose={vi.fn()} onDirtyChange={vi.fn()} hasNext />);
+    renderWithProviders(<MarkSheet studentId={9299} classLevel={3} section="C" onNext={vi.fn()} onClose={vi.fn()} onDirtyChange={vi.fn()} hasNext />);
     expect(await screen.findByText(/Cannot reach the server/)).toBeInTheDocument();
     expect(within(document.body).getByRole('button', { name: /try again|retry/i })).toBeInTheDocument();
   });

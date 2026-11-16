@@ -4,7 +4,7 @@ import {
   CreateDateColumn,
   Entity,
   Index,
-  OneToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   Unique,
   UpdateDateColumn,
@@ -41,6 +41,6 @@ export class Student {
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt: Date;
 
-  @OneToOne(() => Assessment, (a) => a.student)
-  assessment?: Relation<Assessment>;
+  @OneToMany(() => Assessment, (a) => a.student)
+  assessments?: Relation<Assessment[]>;
 }

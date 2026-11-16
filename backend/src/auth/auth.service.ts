@@ -27,18 +27,25 @@ export class AuthService {
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
-  async loginTeacher(req: Request, name: string): Promise<SessionView> {
+  async loginTeacher(req: Request, name: string, password: string): Promise<SessionView> {
     const ip = req.ip ?? 'unknown';
     await this.limiter.assertLoginAllowed(ip);
-    const teacher = await this.teachers.findByLoginName(name);
-    if (!teacher || !teacher.isActive) {
+    const teacher = await this.teachers.authenticate(name, password);
+    if (!teacher) {
       await this.limiter.recordLoginFailure(ip);
       throw new AppException(
         HttpStatus.UNAUTHORIZED,
         'INVALID_CREDENTIALS',
-        'We could not find a registered teacher with that name. Check the spelling, or ask the administrator to register you.',
+        'The name or password is incorrect.',
       );
     }
+    await this.openSession(req, 'teacher', teacher.id, this.config.session.teacherTtlSeconds);
+    return this.view(req, { role: 'teacher', id: teacher.id, fullName: teacher.fullName });
+  }
+
+  async registerTeacher(req: Request, name: string, password: string): Promise<SessionView> {
+    await this.limiter.assertLoginAllowed(req.ip ?? 'unknown');
+    const teacher = await this.teachers.register(name, password);
     await this.openSession(req, 'teacher', teacher.id, this.config.session.teacherTtlSeconds);
     return this.view(req, { role: 'teacher', id: teacher.id, fullName: teacher.fullName });
   }

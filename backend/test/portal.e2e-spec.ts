@@ -5,7 +5,7 @@ import { DataSource } from 'typeorm';
 import { StudentImportService } from '../src/students/import/student-import.service';
 import { TeachersService } from '../src/teachers/teachers.service';
 import { TeacherClassSectionsService } from '../src/teachers/teacher-class-sections.service';
-import { FULL_MARKS, Session, WORKBOOK, bootApp, saveMarks, studentSession, teacherSession } from './helpers';
+import { assessmentPath, FULL_MARKS, Session, TEST_TEACHER_PASSWORD, WORKBOOK, bootApp, saveMarks, studentSession, teacherSession } from './helpers';
 
 const ci = (x: string, y: string) => (x.toLowerCase() < y.toLowerCase() ? -1 : x.toLowerCase() > y.toLowerCase() ? 1 : 0);
 
@@ -25,8 +25,8 @@ describe('Classes Data Entry Portal (end to end, real PostgreSQL + workbook)', (
     expect(report.success).toBe(true);
 
     const teachers = app.get(TeachersService);
-    await teachers.provision('Amina Yusuf');
-    await teachers.provision('Omar Farah');
+    await teachers.register('Amina Yusuf', TEST_TEACHER_PASSWORD);
+    await teachers.register('Omar Farah', TEST_TEACHER_PASSWORD);
     await teachers.provision('Hassan Retired');
     await teachers.setActive('Hassan Retired', false);
 
@@ -117,8 +117,8 @@ describe('Classes Data Entry Portal (end to end, real PostgreSQL + workbook)', (
       expect(res.body).toEqual({ success: false, error: { code: 'UNAUTHENTICATED', message: expect.any(String), statusCode: 401 } });
     });
 
-    it('teacher logs in by name only (case and spacing do not matter) and gets an HttpOnly, SameSite cookie', async () => {
-      const res = await http().post('/api/auth/teacher/login').send({ name: '  amina   YUSUF ' }).expect(200);
+    it('teacher logs in with a password (name matching ignores case and repeated spaces) and gets a secure session cookie', async () => {
+      const res = await http().post('/api/auth/teacher/login').send({ name: '  amina   YUSUF ', password: TEST_TEACHER_PASSWORD }).expect(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data).toMatchObject({ role: 'teacher', user: { fullName: 'Amina Yusuf' }, school: { name: 'Noradin Boys Secondary School' } });
       expect(res.body.data.csrfToken).toHaveLength(64);
@@ -130,16 +130,30 @@ describe('Classes Data Entry Portal (end to end, real PostgreSQL + workbook)', (
 
     it('rejects unknown and deactivated teachers with the same generic error', async () => {
       for (const name of ['Nobody Here', 'Hassan Retired']) {
-        const res = await http().post('/api/auth/teacher/login').send({ name }).expect(401);
+        const res = await http().post('/api/auth/teacher/login').send({ name, password: TEST_TEACHER_PASSWORD }).expect(401);
         expect(res.body.error.code).toBe('INVALID_CREDENTIALS');
       }
     });
 
     it('validates teacher login input', async () => {
-      for (const body of [{}, { name: '' }, { name: '   ' }, { name: 123 }, { name: 'x'.repeat(151) }, { name: 'A B', extra: 1 }]) {
+      for (const body of [{}, { name: '' , password: TEST_TEACHER_PASSWORD}, { name: '   ', password: TEST_TEACHER_PASSWORD }, { name: 123, password: TEST_TEACHER_PASSWORD }, { name: 'x'.repeat(151), password: TEST_TEACHER_PASSWORD }, { name: 'A B', password: TEST_TEACHER_PASSWORD, extra: 1 }, { name: 'A B', password: 'short' }]) {
         const res = await http().post('/api/auth/teacher/login').send(body).expect(422);
         expect(res.body.error.code).toBe('VALIDATION_ERROR');
       }
+    });
+
+    it('registers independent accounts without granting class access', async () => {
+      const signup = await http()
+        .post('/api/auth/teacher/register')
+        .send({ name: 'New Teacher', password: TEST_TEACHER_PASSWORD })
+        .expect(201);
+      expect(signup.body.data.user.fullName).toBe('New Teacher');
+      const created = await app.get(TeachersService).findByLoginName('New Teacher');
+      expect(created).toBeTruthy();
+      expect(created?.passwordHash).toBeUndefined();
+      expect(await app.get(TeacherClassSectionsService).hasAccess(created!.id, 1, 'A')).toBe(false);
+      await http().post('/api/auth/teacher/register').send({ name: 'New Teacher', password: TEST_TEACHER_PASSWORD }).expect(409);
+      await http().post('/api/auth/teacher/login').send({ name: 'Amina Yusuf', password: 'a-different-long-password' }).expect(401);
     });
 
     it('prevents ambiguous duplicate teacher names at provisioning time', async () => {
@@ -185,7 +199,7 @@ describe('Classes Data Entry Portal (end to end, real PostgreSQL + workbook)', (
     });
 
     it('a deactivated teacher loses access on the very next request', async () => {
-      await app.get(TeachersService).provision('Temp Teacher');
+      await app.get(TeachersService).register('Temp Teacher', TEST_TEACHER_PASSWORD);
       const s = await teacherSession(app, 'Temp Teacher');
       await s.agent.get('/api/students').expect(200);
       await app.get(TeachersService).setActive('Temp Teacher', false);
@@ -284,13 +298,22 @@ describe('Classes Data Entry Portal (end to end, real PostgreSQL + workbook)', (
     it('filters by class and by section', async () => {
       expect((await list('classLevel=1&pageSize=1')).body.meta.total).toBe(317);
       expect((await list('classLevel=3&pageSize=1')).body.meta.total).toBe(246);
-      expect((await list('section=F&pageSize=1')).body.meta.total).toBe(50);
-      expect((await list('section=a&pageSize=1')).body.meta.total).toBe(107); // case-insensitive input
+      await amina.agent.get('/api/students?section=F&pageSize=1').expect(422);
+      await amina.agent.get('/api/students?section=a&pageSize=1').expect(422);
       const a = await list('classLevel=1&section=A&pageSize=200');
       expect(a.body.meta).toMatchObject({ total: 56, totalPages: 1 });
       expect(a.body.data).toHaveLength(56);
       expect(a.body.data.every((s: { classLevel: number; section: string }) => s.classLevel === 1 && s.section === 'A')).toBe(true);
       expect((await list('classLevel=3&section=F')).body.meta.total).toBe(0); // Class 3 has no section F
+    });
+
+    it('serves only the exact selected class and section through the API', async () => {
+      const sectionB = (await list('classLevel=1&section=B&pageSize=200')).body;
+      expect(sectionB.meta.total).toBe(53);
+      expect(sectionB.data.every((s: { classLevel: number; section: string }) => s.classLevel === 1 && s.section === 'B')).toBe(true);
+
+      const classThreeA = (await list('classLevel=3&section=A&pageSize=200')).body;
+      expect(classThreeA.data.every((s: { classLevel: number; section: string }) => s.classLevel === 3 && s.section === 'A')).toBe(true);
     });
 
     it('default order is by class, section, then name', async () => {
@@ -372,9 +395,11 @@ describe('Classes Data Entry Portal (end to end, real PostgreSQL + workbook)', (
   // ------------------------------------------------------------- marks entry
   describe('Marks entry', () => {
     it('shows "nothing entered yet" for a student with no record', async () => {
-      const res = await amina.agent.get(`/api/assessments/student/${ids.a}`).expect(200);
+      const res = await amina.agent.get(assessmentPath(ids.a)).expect(200);
       expect(res.body.data.assessment).toBeNull();
       expect(res.body.data.student).toMatchObject({ studentId: ids.a, classLevel: 1, section: 'A' });
+      await amina.agent.get(`/api/assessments/student/${ids.a}?classLevel=1&section=B`).expect(404);
+      await amina.agent.get(`/api/assessments/student/${ids.a}`).expect(422);
     });
 
     it('creates an assessment: total, subtotals, remaining and status are calculated by the server', async () => {
@@ -438,7 +463,7 @@ describe('Classes Data Entry Portal (end to end, real PostgreSQL + workbook)', (
     it('accepts the exact maximum (30/30) and keeps 0 distinct from "not entered"', async () => {
       const res = await saveMarks(amina, ids.b, FULL_MARKS).expect(200);
       expect(res.body.data.assessment).toMatchObject({ totalMarks: 30, remaining: 0, status: 'submitted' });
-      const zero = await saveMarks(amina, ids.other, Object.fromEntries(Object.keys(FULL_MARKS).map((k) => [k, 0]))).expect(200);
+      const zero = await saveMarks(amina, ids.other, Object.fromEntries(Object.keys(FULL_MARKS).map((k) => [k, 0])), 3, 'E').expect(200);
       expect(zero.body.data.assessment).toMatchObject({ totalMarks: 0, remaining: 30, status: 'submitted' });
     });
 
@@ -456,7 +481,7 @@ describe('Classes Data Entry Portal (end to end, real PostgreSQL + workbook)', (
       const res = await saveMarks(amina, ids.other, {
         chapter1Notes: 0.1, chapter1Exercises: 0.2, chapter1Assignment: null,
         chapter2Notes: null, chapter2Exercises: null, chapter2Assignment: null, textbook: 1.15,
-      }).expect(200);
+      }, 3, 'E').expect(200);
       expect(res.body.data.assessment.totalMarks).toBe(1.45);
       const [row] = await ds.query(`SELECT total_marks::text t FROM assessments a JOIN students s ON s.id=a.student_id WHERE s.student_id=$1`, [ids.other]);
       expect(row.t).toBe('1.45');
@@ -469,11 +494,11 @@ describe('Classes Data Entry Portal (end to end, real PostgreSQL + workbook)', (
       await expect(ds.query(`UPDATE assessments SET status = 'draft' WHERE student_id = (SELECT id FROM students WHERE student_id = $1)`, [ids.a])).rejects.toMatchObject({ code: '23514' });
     });
 
-    it('only one assessment row can exist per student', async () => {
+    it('allows one separately owned assessment per teacher and student', async () => {
       await expect(
         ds.query(
-          `INSERT INTO assessments (student_id, chapter1_notes, total_marks, status, created_by, updated_by)
-           SELECT a.student_id, 1, 1, 'draft', a.created_by, a.updated_by FROM assessments a JOIN students s ON s.id=a.student_id WHERE s.student_id=$1`,
+          `INSERT INTO assessments (student_id, teacher_id, chapter1_notes, total_marks, status, created_by, updated_by)
+           SELECT a.student_id, a.teacher_id, 1, 1, 'draft', a.created_by, a.updated_by FROM assessments a JOIN students s ON s.id=a.student_id WHERE s.student_id=$1`,
           [ids.a],
         ),
       ).rejects.toMatchObject({ code: '23505' });
@@ -495,7 +520,7 @@ describe('Classes Data Entry Portal (end to end, real PostgreSQL + workbook)', (
     it('refuses to overwrite newer data with a stale form (HTTP 409)', async () => {
       const res = await saveMarks(amina, ids.a, { ...FULL_MARKS, chapter1Notes: 1, expectedVersion: 1 }).expect(409);
       expect(res.body.error.code).toBe('STALE_ASSESSMENT');
-      const now = await amina.agent.get(`/api/assessments/student/${ids.a}`).expect(200);
+      const now = await amina.agent.get(assessmentPath(ids.a)).expect(200);
       expect(now.body.data.assessment).toMatchObject({ totalMarks: 27, version: 2, updatedBy: 'Amina Yusuf' });
     });
 
@@ -504,7 +529,7 @@ describe('Classes Data Entry Portal (end to end, real PostgreSQL + workbook)', (
     });
 
     it('re-submitting identical marks (double click / retry) is a harmless no-op', async () => {
-      const before = (await amina.agent.get(`/api/assessments/student/${ids.a}`)).body.data.assessment;
+      const before = (await amina.agent.get(assessmentPath(ids.a))).body.data.assessment;
       const res = await saveMarks(amina, ids.a, { ...before.marks, expectedVersion: 1 }).expect(200);
       expect(res.body.data).toMatchObject({ created: false, unchanged: true });
       expect(res.body.data.assessment.version).toBe(before.version);
@@ -515,21 +540,21 @@ describe('Classes Data Entry Portal (end to end, real PostgreSQL + workbook)', (
       const [{ student_id }] = await ds.query(`SELECT student_id FROM students WHERE class_level = 3 AND section = 'A' ORDER BY name LIMIT 1`);
       const one = { chapter1Notes: 1, chapter1Exercises: 1, chapter1Assignment: 1, chapter2Notes: 1, chapter2Exercises: 1, chapter2Assignment: 1, textbook: 1 };
       const two = { ...one, textbook: 2 };
-      const results = await Promise.all([saveMarks(amina, student_id, one), saveMarks(amina, student_id, two)]);
+      const results = await Promise.all([saveMarks(amina, student_id, one, 3, 'A'), saveMarks(amina, student_id, two, 3, 'A')]);
       const statuses = results.map((r) => r.status).sort();
       expect(statuses).toEqual([200, 409]);
       const [{ n }] = await ds.query(`SELECT COUNT(*)::int n FROM assessments a JOIN students s ON s.id=a.student_id WHERE s.student_id=$1`, [student_id]);
       expect(n).toBe(1);
       // identical simultaneous submits both end well (the loser becomes a no-op)
       const [{ student_id: other }] = await ds.query(`SELECT student_id FROM students WHERE class_level = 3 AND section = 'B' ORDER BY name LIMIT 1`);
-      const same = await Promise.all([saveMarks(amina, other, one), saveMarks(amina, other, one)]);
+      const same = await Promise.all([saveMarks(amina, other, one, 3, 'B'), saveMarks(amina, other, one, 3, 'B')]);
       expect(same.map((r) => r.status)).toEqual([200, 200]);
       const [{ n: n2 }] = await ds.query(`SELECT COUNT(*)::int n FROM assessments a JOIN students s ON s.id=a.student_id WHERE s.student_id=$1`, [other]);
       expect(n2).toBe(1);
     });
 
     it('completing a draft flips it to submitted', async () => {
-      const draft = (await amina.agent.get(`/api/assessments/student/${ids.c}`)).body.data.assessment;
+      const draft = (await amina.agent.get(assessmentPath(ids.c))).body.data.assessment;
       expect(draft.status).toBe('draft');
       const res = await saveMarks(amina, ids.c, { ...draft.marks, chapter2Notes: 2, chapter2Exercises: 6, chapter2Assignment: 5, textbook: 4, expectedVersion: draft.version }).expect(200);
       expect(res.body.data.assessment).toMatchObject({ status: 'submitted', totalMarks: 11 + 17, version: draft.version + 1 });
@@ -688,7 +713,7 @@ describe('Classes Data Entry Portal (end to end, real PostgreSQL + workbook)', (
 
     it('overview reflects assessment updates immediately', async () => {
       await amina.agent.get('/api/stats/overview').expect(200);
-      const cur = (await amina.agent.get(`/api/assessments/student/${ids.b}`)).body.data.assessment;
+      const cur = (await amina.agent.get(assessmentPath(ids.b))).body.data.assessment;
       await saveMarks(amina, ids.b, { ...cur.marks, chapter1Notes: 1, expectedVersion: cur.version }).expect(200);
       const fresh = (await amina.agent.get('/api/stats/overview')).body.data;
       expect(fresh.recentActivity[0]).toMatchObject({ studentId: ids.b, totalMarks: 29 });
@@ -710,35 +735,70 @@ describe('Classes Data Entry Portal (end to end, real PostgreSQL + workbook)', (
       await ds.query(`DELETE FROM app_rate_limits`);
       const agent = request.agent(app.getHttpServer());
       for (let i = 0; i < 5; i++) await agent.post('/api/auth/student/login').send({ studentId: 90000000 + i }).expect(401);
-      const blocked = await agent.post('/api/auth/teacher/login').send({ name: 'Amina Yusuf' }).expect(429);
+      const blocked = await agent.post('/api/auth/teacher/login').send({ name: 'Amina Yusuf', password: TEST_TEACHER_PASSWORD }).expect(429);
       expect(blocked.body.error.code).toBe('RATE_LIMITED');
       expect(Number(blocked.headers['retry-after'])).toBeGreaterThan(0);
       await ds.query(`DELETE FROM app_rate_limits`);
-      await agent.post('/api/auth/teacher/login').send({ name: 'Amina Yusuf' }).expect(200);
+      await agent.post('/api/auth/teacher/login').send({ name: 'Amina Yusuf', password: TEST_TEACHER_PASSWORD }).expect(200);
     });
 
     describe('Teacher class/section isolation', () => {
       it('restricts each teacher to their explicitly assigned class/section across reads, writes and exports', async () => {
         const assignments = app.get(TeacherClassSectionsService);
-        await assignments.unassign('Amina Yusuf', 3, 'A');
-        await assignments.assign('Omar Farah', 3, 'A');
         const [{ student_id: ownedStudent }] = await ds.query(
           `SELECT student_id FROM students WHERE class_level = 3 AND section = 'A' ORDER BY student_id LIMIT 1`,
         );
+        if (!(await amina.agent.get(assessmentPath(ownedStudent, 3, 'A')).expect(200)).body.data.assessment) {
+          await saveMarks(amina, ownedStudent, FULL_MARKS, 3, 'A').expect(200);
+        }
+        await assignments.unassign('Amina Yusuf', 3, 'A');
+        await assignments.assign('Omar Farah', 3, 'A');
 
         await amina.agent.get('/api/students?classLevel=3&section=A').expect(403);
-        await amina.agent.get(`/api/assessments/student/${ownedStudent}`).expect(404);
-        await saveMarks(amina, ownedStudent, FULL_MARKS).expect(404);
+        await amina.agent.get(assessmentPath(ownedStudent, 3, 'A')).expect(404);
+        await saveMarks(amina, ownedStudent, FULL_MARKS, 3, 'A').expect(404);
         await amina.agent.get('/api/students/export?classLevel=3&section=A').expect(403);
         await amina.agent.get('/api/assessments/export?classLevel=3&section=A').expect(403);
 
         const roster = await omar.agent.get('/api/students?classLevel=3&section=A&pageSize=200').expect(200);
         expect(roster.body.meta.total).toBeGreaterThan(0);
         expect(roster.body.data.every((row: { classLevel: number; section: string }) => row.classLevel === 3 && row.section === 'A')).toBe(true);
-        const saved = await saveMarks(omar, ownedStudent, FULL_MARKS).expect(200);
+        const oldRecord = await omar.agent.get(assessmentPath(ownedStudent, 3, 'A')).expect(200);
+        expect(oldRecord.body.data.assessment).toBeNull();
+        const saved = await saveMarks(omar, ownedStudent, FULL_MARKS, 3, 'A').expect(200);
         expect(saved.body.data.assessment.createdBy).toBe('Omar Farah');
-        const visibleToOwner = await omar.agent.get(`/api/assessments/student/${ownedStudent}`).expect(200);
+        const visibleToOwner = await omar.agent.get(assessmentPath(ownedStudent, 3, 'A')).expect(200);
         expect(visibleToOwner.body.data.assessment.totalMarks).toBe(30);
+        const oldOwnerCannotRead = await amina.agent.get(assessmentPath(ownedStudent, 3, 'A')).expect(404);
+        expect(oldOwnerCannotRead.body.error.code).toBe('STUDENT_NOT_FOUND');
+        const [{ n: distinctOwners }] = await ds.query(
+          `SELECT COUNT(DISTINCT teacher_id)::int n FROM assessments a JOIN students s ON s.id=a.student_id WHERE s.student_id=$1`,
+          [ownedStudent],
+        );
+        expect(distinctOwners).toBe(2);
+        const ownerRecords = await omar.agent.get('/api/assessments?classLevel=3&section=A&pageSize=200').expect(200);
+        expect(ownerRecords.body.data.length).toBeGreaterThan(0);
+        expect(ownerRecords.body.data.every((row: { createdBy: string }) => row.createdBy === 'Omar Farah')).toBe(true);
+
+        const workbookResponse = await omar.agent
+          .get('/api/assessments/export?classLevel=3&section=A')
+          .buffer()
+          .parse((res, callback) => {
+            const chunks: Buffer[] = [];
+            res.on('data', (chunk: Buffer) => chunks.push(Buffer.from(chunk)));
+            res.on('end', () => callback(null, Buffer.concat(chunks)));
+          })
+          .expect(200);
+        const workbook = new ExcelJS.Workbook();
+        const bytes = new Uint8Array(workbookResponse.body.byteLength);
+        bytes.set(workbookResponse.body);
+        await workbook.xlsx.load(bytes.buffer);
+        const sheet = workbook.worksheets[0];
+        expect(sheet.rowCount).toBe(2);
+        expect(sheet.getRow(2).getCell(1).value).toBe(ownedStudent);
+        expect(sheet.getRow(2).getCell(3).value).toBe(3);
+        expect(sheet.getRow(2).getCell(4).value).toBe('A');
+        expect(sheet.getRow(2).getCell(14).value).toBe('Omar Farah');
         const hiddenFromOther = await amina.agent.get(`/api/students?search=${ownedStudent}`).expect(200);
         expect(hiddenFromOther.body.data).toEqual([]);
       });

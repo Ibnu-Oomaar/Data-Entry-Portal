@@ -26,25 +26,6 @@ const STATUS_OPTIONS: Array<{ value: ListStatus | 'all'; label: string }> = [
   { value: 'submitted', label: 'Completed' },
 ];
 
-function Chip({ active, onClick, children, className }: { active: boolean; onClick: () => void; children: React.ReactNode; className?: string }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onClick}
-      className={cn(
-        'inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold transition-colors',
-        active ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-card text-muted-foreground hover:border-input hover:text-foreground',
-        className,
-      )}
-    >
-      {children}
-    </button>
-  );
-}
-
-const Count = ({ n, active }: { n: number; active: boolean }) => <span className={cn('text-xs font-medium', active ? 'text-white/80' : 'text-subtle')}>{n}</span>;
-
 /**
  * Search + class tabs + section chips + status + sort. Used by the marks workspace, the student records
  * and the assessment records pages so "classify by class and section" works the same everywhere.
@@ -78,18 +59,12 @@ export function StudentFilterBar({
   useEffect(() => setText(filters.search), [filters.search]);
 
   const classes = structure ?? [];
-  const sections = useMemo(() => {
-    if (filters.classLevel) return classes.find((c) => c.classLevel === filters.classLevel)?.sections.map((s) => ({ section: s.section, students: s.students })) ?? [];
-    const map = new Map<string, number>();
-    for (const c of classes) for (const s of c.sections) map.set(s.section, (map.get(s.section) ?? 0) + s.students);
-    return [...map.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([section, students]) => ({ section, students }));
-  }, [classes, filters.classLevel]);
-  const total = classes.reduce((n, c) => n + c.students, 0);
+  const sections = useMemo(
+    () => (filters.classLevel ? classes.find((c) => c.classLevel === filters.classLevel)?.sections ?? [] : []),
+    [classes, filters.classLevel],
+  );
 
-  const chooseClass = (classLevel?: number) => {
-    const stillValid = !filters.section || !classLevel || classes.find((c) => c.classLevel === classLevel)?.sections.some((s) => s.section === filters.section);
-    update({ classLevel, ...(stillValid ? {} : { section: undefined }) });
-  };
+  const chooseClass = (classLevel?: number) => update({ classLevel, section: undefined });
 
   return (
     <div className={cn('space-y-3', compact && 'space-y-2.5')}>
@@ -110,26 +85,37 @@ export function StudentFilterBar({
         )}
       </div>
 
-      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by class">
-        <Chip active={!filters.classLevel} onClick={() => chooseClass(undefined)}>
-          All classes <Count n={total} active={!filters.classLevel} />
-        </Chip>
-        {classes.map((c) => (
-          <Chip key={c.classLevel} active={filters.classLevel === c.classLevel} onClick={() => chooseClass(c.classLevel)}>
-            Class {c.classLevel} <Count n={c.students} active={filters.classLevel === c.classLevel} />
-          </Chip>
-        ))}
-      </div>
-
-      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by section">
-        <Chip active={!filters.section} onClick={() => update({ section: undefined })}>
-          All sections
-        </Chip>
-        {sections.map((s) => (
-          <Chip key={s.section} active={filters.section === s.section} onClick={() => update({ section: s.section })} className="min-w-11 justify-center">
-            {s.section} <Count n={s.students} active={filters.section === s.section} />
-          </Chip>
-        ))}
+      <div className="grid gap-2 sm:grid-cols-2">
+        <Select value={filters.classLevel ? String(filters.classLevel) : 'all'} onValueChange={(v) => chooseClass(v === 'all' ? undefined : Number(v))}>
+          <SelectTrigger aria-label="Class Select">
+            <SelectValue placeholder="Select class" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All classes</SelectItem>
+            {classes.map((c) => (
+              <SelectItem key={c.classLevel} value={String(c.classLevel)}>
+                Class {c.classLevel}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={filters.section ?? 'all'}
+          onValueChange={(v) => update({ section: v === 'all' ? undefined : v })}
+          disabled={!filters.classLevel}
+        >
+          <SelectTrigger aria-label="Section Select">
+            <SelectValue placeholder={filters.classLevel ? 'Select section' : 'Choose a class first'} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All sections</SelectItem>
+            {sections.map((s) => (
+              <SelectItem key={s.section} value={s.section}>
+                Section {s.section} ({s.students})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className={cn('grid gap-2', compact ? 'grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]' : 'sm:grid-cols-[1fr_1fr_auto_auto]')}>

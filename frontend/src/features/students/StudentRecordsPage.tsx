@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef, type SortingState } from '@tanstack/react-table';
 import { PencilLine, SearchX, Users } from 'lucide-react';
 import { useMemo } from 'react';
@@ -28,7 +28,7 @@ const entryLink = (s: StudentListItem) => `/teacher/marks?student=${s.studentId}
 export function StudentRecordsPage() {
   const { filters, query, update, reset, isFiltered } = useStudentFilters(DEFAULTS);
   const structure = useStructure();
-  const list = useQuery({ queryKey: ['students', query], queryFn: () => studentsApi.list(query), placeholderData: keepPreviousData });
+  const list = useQuery({ queryKey: ['students', query], queryFn: () => studentsApi.list(query) });
 
   // Server-side sorting: react-table only renders; clicking a header asks the API for a new order.
   const sorting: SortingState = filters.sortBy === 'classSection' ? [] : [{ id: filters.sortBy, desc: filters.sortDir === 'desc' }];

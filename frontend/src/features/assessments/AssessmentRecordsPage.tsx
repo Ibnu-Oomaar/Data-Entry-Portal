@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { ClipboardList, PencilLine, SearchX } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -25,7 +25,7 @@ const entryLink = (r: AssessmentRecordRow) => `/teacher/marks?student=${r.studen
 export function AssessmentRecordsPage() {
   const { filters, query, update, reset, isFiltered } = useStudentFilters(DEFAULTS);
   const structure = useStructure();
-  const list = useQuery({ queryKey: ['assessments', query], queryFn: () => assessmentsApi.list(query), placeholderData: keepPreviousData });
+  const list = useQuery({ queryKey: ['assessments', query], queryFn: () => assessmentsApi.list(query) });
   const meta = list.data?.meta;
 
   const onSort = (field: StudentSortField) => {
@@ -40,7 +40,7 @@ export function AssessmentRecordsPage() {
         description={meta ? `${meta.total} saved ${meta.total === 1 ? 'assessment' : 'assessments'}. Completed means all seven parts are entered.` : 'Loading…'}
         actions={
           <>
-            <ExcelExportButton download={() => assessmentsApi.export(query)} filename="assessment-records.xlsx" />
+            <ExcelExportButton download={() => assessmentsApi.export(query)} filename="assessment-records.xlsx" disabled={!filters.classLevel || !filters.section} />
             <Button asChild>
               <Link to="/teacher/marks">
                 <PencilLine aria-hidden /> Enter marks

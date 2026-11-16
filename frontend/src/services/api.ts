@@ -26,7 +26,8 @@ const clean = (q: StudentQuery) =>
 
 export const authApi = {
   me: () => api.get<Envelope<Session>>('/auth/me').then(unwrap),
-  loginTeacher: (name: string) => api.post<Envelope<Session>>('/auth/teacher/login', { name }).then(unwrap),
+  loginTeacher: (name: string, password: string) => api.post<Envelope<Session>>('/auth/teacher/login', { name, password }).then(unwrap),
+  registerTeacher: (name: string, password: string) => api.post<Envelope<Session>>('/auth/teacher/register', { name, password }).then(unwrap),
   loginStudent: (studentId: number) => api.post<Envelope<Session>>('/auth/student/login', { studentId }).then(unwrap),
   logout: () => api.post('/auth/logout').then(() => undefined),
 };
@@ -42,9 +43,10 @@ export const studentsApi = {
 };
 
 export const assessmentsApi = {
-  get: (studentId: number) => api.get<Envelope<StudentAssessment>>(`/assessments/student/${studentId}`).then(unwrap),
-  save: (studentId: number, payload: SaveAssessmentPayload) =>
-    api.put<Envelope<SaveResult>>(`/assessments/student/${studentId}`, payload).then(unwrap),
+  get: (studentId: number, scope: Pick<StudentQuery, 'classLevel' | 'section'>) =>
+    api.get<Envelope<StudentAssessment>>(`/assessments/student/${studentId}`, { params: clean(scope) }).then(unwrap),
+  save: (studentId: number, payload: SaveAssessmentPayload, scope: Pick<StudentQuery, 'classLevel' | 'section'>) =>
+    api.put<Envelope<SaveResult>>(`/assessments/student/${studentId}`, payload, { params: clean(scope) }).then(unwrap),
   list: (q: StudentQuery) => api.get<Envelope<AssessmentRecordRow[]>>('/assessments', { params: clean(q) }).then(unwrapPage),
   export: (q: StudentQuery) => api.get<Blob>('/assessments/export', { params: clean(q), responseType: 'blob' }).then((res) => res.data),
   own: () => api.get<Envelope<StudentAssessment>>('/me/assessment').then(unwrap),

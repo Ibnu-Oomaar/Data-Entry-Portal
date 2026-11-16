@@ -6,8 +6,8 @@ import {
   Index,
   JoinColumn,
   ManyToOne,
-  OneToOne,
   PrimaryGeneratedColumn,
+  Unique,
   UpdateDateColumn,
   ValueTransformer,
 } from 'typeorm';
@@ -26,13 +26,14 @@ const mark = (name: string) =>
   Column({ name, type: 'numeric', precision: 4, scale: 2, nullable: true, transformer: numericTransformer });
 
 /**
- * One assessment per student (a single assessment period and subject; see README "Open business rules").
- * The OneToOne relation below creates the UNIQUE constraint on student_id that enforces it.
+ * One assessment per teacher and student. A teacher's assessment is private to its owner.
  * NULL = not entered yet, 0 = entered as zero.
  */
 @Entity('assessments')
+@Unique('uq_assessments_student_teacher', ['studentRefId', 'teacherRefId'])
 @Index('idx_assessments_status', ['status'])
 @Index('idx_assessments_updated_at', ['updatedAt'])
+@Index('idx_assessments_teacher_updated_at', ['teacherRefId', 'updatedAt'])
 @Check(
   'chk_assessments_mark_ranges',
   `("chapter1_notes" IS NULL OR "chapter1_notes" BETWEEN 0 AND 2)
@@ -59,9 +60,16 @@ export class Assessment {
   @Column({ name: 'student_id', type: 'uuid' })
   studentRefId: string;
 
-  @OneToOne(() => Student, (s) => s.assessment, { nullable: false, onDelete: 'RESTRICT' })
+  @ManyToOne(() => Student, (s) => s.assessments, { nullable: false, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'student_id' })
   student: Relation<Student>;
+
+  @Column({ name: 'teacher_id', type: 'uuid' })
+  teacherRefId: string;
+
+  @ManyToOne(() => Teacher, { nullable: false, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'teacher_id' })
+  teacher: Relation<Teacher>;
 
   @mark('chapter1_notes') chapter1Notes: number | null;
   @mark('chapter1_exercises') chapter1Exercises: number | null;

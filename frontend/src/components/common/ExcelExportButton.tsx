@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { errorMessage } from '@/services/api-client';
 import { Button } from '@/components/ui/button';
 
-export function ExcelExportButton({ download, filename }: { download: () => Promise<Blob>; filename: string }) {
+export function ExcelExportButton({ download, filename, disabled = false }: { download: () => Promise<Blob>; filename: string; disabled?: boolean }) {
   const [isDownloading, setIsDownloading] = useState(false);
 
   const exportFile = async () => {
@@ -25,7 +25,7 @@ export function ExcelExportButton({ download, filename }: { download: () => Prom
   };
 
   return (
-    <Button variant="outline" onClick={exportFile} disabled={isDownloading}>
+    <Button variant="outline" onClick={exportFile} disabled={isDownloading || disabled}>
       {isDownloading ? <LoaderCircle className="animate-spin" aria-hidden /> : <Download aria-hidden />}
       {isDownloading ? 'Preparing…' : 'Export Excel'}
     </Button>

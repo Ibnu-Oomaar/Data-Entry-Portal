@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsInt, IsNotEmpty, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsInt, IsNotEmpty, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 
 export class TeacherLoginDto {
   @Transform(({ value }) => (typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : value))
@@ -7,6 +7,11 @@ export class TeacherLoginDto {
   @IsNotEmpty({ message: 'Enter your full name' })
   @MaxLength(150, { message: 'That name is too long' })
   name: string;
+
+  @IsString({ message: 'Enter your password' })
+  @MinLength(12, { message: 'Password must be at least 12 characters' })
+  @MaxLength(128, { message: 'Password must be no more than 128 characters' })
+  password: string;
 }
 
 export class StudentLoginDto {

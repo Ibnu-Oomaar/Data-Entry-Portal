@@ -70,10 +70,17 @@ export class AssessmentsService {
   ) {}
 
   /** Teacher view of one student: identity + current assessment (or null if nothing is entered yet). */
-  async getForTeacher(studentId: number, teacherId: string): Promise<StudentAssessment> {
-    const student = await this.students.findBySchoolIdOrFail(studentId);
-    await this.students.assertTeacherAccess(student, teacherId);
-    const a = await this.repo.findOne({ where: { studentRefId: student.id }, relations: { createdBy: true, updatedBy: true } });
+  async getForTeacher(
+    studentId: number,
+    teacherId: string,
+    classLevel?: number,
+    section?: string,
+  ): Promise<StudentAssessment> {
+    const student = await this.students.findTeacherSelectedStudent(studentId, teacherId, classLevel, section);
+    const a = await this.repo.findOne({
+      where: { studentRefId: student.id, teacherRefId: teacherId },
+      relations: { createdBy: true, updatedBy: true },
+    });
     return { student: toStudentSummary(student), assessment: a ? toAssessmentView(a, { audit: true }) : null };
   }
 
@@ -81,19 +88,24 @@ export class AssessmentsService {
   async getOwn(studentRefId: string): Promise<StudentAssessment> {
     const student = await this.students.findById(studentRefId);
     if (!student) throw new AppException(HttpStatus.NOT_FOUND, 'STUDENT_NOT_FOUND', 'Student record not found.');
-    const a = await this.repo.findOne({ where: { studentRefId: student.id } });
+    const [a] = await this.repo.find({ where: { studentRefId: student.id }, order: { updatedAt: 'DESC' }, take: 1 });
     return { student: toStudentSummary(student), assessment: a ? toAssessmentView(a, { audit: false }) : null };
   }
 
   /**
    * Create or update the single assessment for a student.
    * - Totals and status are computed here from the seven components (the client's totals are ignored).
-   * - A row lock + version check stops two teachers silently overwriting each other.
+   * - A teacher-owned row lock + version check stops one teacher silently overwriting their own data.
    * - Re-sending identical marks (double click, retry) is a harmless no-op.
    */
-  async save(studentId: number, dto: SaveAssessmentDto, teacherId: string): Promise<SaveResult> {
-    const student = await this.students.findBySchoolIdOrFail(studentId);
-    await this.students.assertTeacherAccess(student, teacherId);
+  async save(
+    studentId: number,
+    dto: SaveAssessmentDto,
+    teacherId: string,
+    classLevel?: number,
+    section?: string,
+  ): Promise<SaveResult> {
+    const student = await this.students.findTeacherSelectedStudent(studentId, teacherId, classLevel, section);
     const marks = {} as MarksInput;
     for (const k of COMPONENT_KEYS) marks[k] = dto[k as ComponentKey];
     const computed = computeAssessment(marks);
@@ -136,7 +148,10 @@ export class AssessmentsService {
   ): Promise<PersistOutcome> {
     return this.dataSource.transaction(async (em) => {
       const repo = em.getRepository(Assessment);
-      const existing = await repo.findOne({ where: { studentRefId }, lock: { mode: 'pessimistic_write' } });
+      const existing = await repo.findOne({
+        where: { studentRefId, teacherRefId: teacherId },
+        lock: { mode: 'pessimistic_write' },
+      });
 
       if (!existing) {
         if (expectedVersion !== null) {
@@ -145,6 +160,7 @@ export class AssessmentsService {
         const created = await repo.save(
           repo.create({
             studentRefId,
+            teacherRefId: teacherId,
             ...marks,
             totalMarks: computed.totalMarks,
             status: computed.status,
@@ -187,6 +203,7 @@ export class AssessmentsService {
         'access.class_level = s.class_level AND access.section = s.section AND access.teacher_id = :teacherId',
         { teacherId },
       )
+      .andWhere('a.teacher_id = :teacherId')
       .innerJoin('a.createdBy', 'cb')
       .innerJoin('a.updatedBy', 'ub');
     if (q.classLevel !== undefined) qb.andWhere('s.class_level = :classLevel', { classLevel: q.classLevel });
@@ -261,6 +278,13 @@ export class AssessmentsService {
   }
 
   async export(q: ListStudentsDto, teacherId: string): Promise<Buffer> {
+    if (q.classLevel === undefined || q.section === undefined) {
+      throw new AppException(
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        'CLASS_SECTION_REQUIRED',
+        'Select a class and section before exporting assessment records.',
+      );
+    }
     await this.students.ensureTeacherFilterAccess(teacherId, q.classLevel, q.section);
     const sortBy = q.sortBy && q.sortBy !== 'classSection' ? q.sortBy : 'updatedAt';
     const dir = (q.sortDir ?? (sortBy === 'updatedAt' ? 'desc' : 'asc')).toUpperCase() as 'ASC' | 'DESC';

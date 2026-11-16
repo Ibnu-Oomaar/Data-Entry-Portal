@@ -13,7 +13,14 @@ export class AuthController {
   @Post('teacher/login')
   @HttpCode(200)
   teacherLogin(@Body() dto: TeacherLoginDto, @Req() req: Request) {
-    return this.auth.loginTeacher(req, dto.name);
+    return this.auth.loginTeacher(req, dto.name, dto.password);
+  }
+
+  @Public()
+  @Post('teacher/register')
+  @HttpCode(201)
+  teacherRegister(@Body() dto: TeacherLoginDto, @Req() req: Request) {
+    return this.auth.registerTeacher(req, dto.name, dto.password);
   }
 
   @Public()

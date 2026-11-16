@@ -75,6 +75,27 @@ export class StudentsService {
     await this.assignments.assertStudentAccess(teacherId, student);
   }
 
+  async findTeacherSelectedStudent(
+    studentId: number,
+    teacherId: string,
+    classLevel?: number,
+    section?: string,
+  ): Promise<Student> {
+    if (classLevel === undefined || section === undefined) {
+      throw new AppException(
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        'CLASS_SECTION_REQUIRED',
+        'Select a class and section before accessing student marks.',
+      );
+    }
+    const student = await this.findBySchoolIdOrFail(studentId);
+    if (student.classLevel !== classLevel || student.section !== section) {
+      throw new AppException(HttpStatus.NOT_FOUND, 'STUDENT_NOT_FOUND', 'Student record not found.');
+    }
+    await this.assertTeacherAccess(student, teacherId);
+    return student;
+  }
+
   ensureTeacherFilterAccess(teacherId: string, classLevel?: number, section?: string): Promise<void> {
     return this.assignments.assertFilterAccess(teacherId, classLevel, section);
   }
@@ -95,7 +116,7 @@ export class StudentsService {
         'access.class_level = s.class_level AND access.section = s.section AND access.teacher_id = :teacherId',
         { teacherId },
       )
-      .leftJoin(Assessment, 'a', 'a.student_id = s.id');
+      .leftJoin(Assessment, 'a', 'a.student_id = s.id AND a.teacher_id = :teacherId', { teacherId });
     if (q.classLevel !== undefined) qb.andWhere('s.class_level = :classLevel', { classLevel: q.classLevel });
     if (q.section) qb.andWhere('s.section = :section', { section: q.section });
     if (q.status === 'pending') qb.andWhere('a.id IS NULL');
@@ -243,7 +264,7 @@ export class StudentsService {
           ON access.class_level = s.class_level
          AND access.section = s.section
          AND access.teacher_id = $1
-        LEFT JOIN assessments a ON a.student_id = s.id
+        LEFT JOIN assessments a ON a.student_id = s.id AND a.teacher_id = $1
        GROUP BY s.class_level, s.section
        ORDER BY s.class_level, s.section`, [teacherId]);
 

@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { MousePointerClick, PlayCircle } from 'lucide-react';
 import { useCallback, useEffect, useRef } from 'react';
 import { useBlocker, useSearchParams } from 'react-router-dom';
@@ -22,10 +22,15 @@ const DEFAULTS = { sortBy: 'classSection', sortDir: 'asc', pageSize: 100 } as co
 export function MarksWorkspacePage() {
   const { filters, query, update, reset, isFiltered } = useStudentFilters(DEFAULTS);
   const [params, setParams] = useSearchParams();
-  const selectedId = Number(params.get('student')) || undefined;
+  const selectedId = filters.classLevel && filters.section ? Number(params.get('student')) || undefined : undefined;
   const structure = useStructure();
+  const hasSelection = filters.classLevel !== undefined && filters.section !== undefined;
 
-  const list = useQuery({ queryKey: ['students', query], queryFn: () => studentsApi.list(query), placeholderData: keepPreviousData });
+  const list = useQuery({
+    queryKey: ['students', query],
+    queryFn: () => studentsApi.list(query),
+    enabled: hasSelection,
+  });
   const items = list.data?.items;
 
   // --- unsaved-changes protection -------------------------------------------------------------
@@ -81,8 +86,8 @@ export function MarksWorkspacePage() {
           <StudentPicker
             items={items}
             meta={list.data?.meta}
-            isPending={list.isPending}
-            isFetching={list.isFetching}
+            isPending={list.isPending && hasSelection}
+            isFetching={list.isFetching && hasSelection}
             error={list.error}
             onRetry={() => list.refetch()}
             selectedId={selectedId}
@@ -92,12 +97,21 @@ export function MarksWorkspacePage() {
             reset={reset}
             isFiltered={isFiltered}
             structure={structure.data}
+            hasSelection={hasSelection}
           />
         </div>
 
         <div className={cn('min-w-0', !selectedId && 'max-lg:hidden')}>
-          {selectedId ? (
-            <MarkSheet studentId={selectedId} onDirtyChange={setDirty} onNext={goNext} hasNext={!!nextStudent} onClose={() => select(undefined)} />
+          {selectedId && filters.classLevel !== undefined && filters.section ? (
+            <MarkSheet
+              studentId={selectedId}
+              classLevel={filters.classLevel}
+              section={filters.section}
+              onDirtyChange={setDirty}
+              onNext={goNext}
+              hasNext={!!nextStudent}
+              onClose={() => select(undefined)}
+            />
           ) : (
             <Card className="flex flex-col items-center gap-4 px-6 py-8 text-center">
               <span className="flex size-14 items-center justify-center rounded-2xl bg-primary-soft text-primary">

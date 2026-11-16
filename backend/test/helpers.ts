@@ -18,6 +18,7 @@ export const FULL_MARKS = {
   chapter2Assignment: 5,
   textbook: 4,
 };
+export const TEST_TEACHER_PASSWORD = 'correct horse battery staple';
 
 export interface TestContext {
   app: INestApplication;
@@ -49,7 +50,7 @@ export interface Session {
 
 export async function teacherSession(app: INestApplication, name: string): Promise<Session> {
   const agent = request.agent(app.getHttpServer());
-  const res = await agent.post('/api/auth/teacher/login').send({ name }).expect(200);
+  const res = await agent.post('/api/auth/teacher/login').send({ name, password: TEST_TEACHER_PASSWORD }).expect(200);
   return { agent, csrf: res.body.data.csrfToken };
 }
 
@@ -59,5 +60,8 @@ export async function studentSession(app: INestApplication, studentId: number): 
   return { agent, csrf: res.body.data.csrfToken };
 }
 
-export const saveMarks = (s: Session, studentId: number, body: Record<string, unknown>) =>
-  s.agent.put(`/api/assessments/student/${studentId}`).set('X-CSRF-Token', s.csrf).send(body);
+export const assessmentPath = (studentId: number, classLevel = 1, section = 'A') =>
+  `/api/assessments/student/${studentId}?classLevel=${classLevel}&section=${section}`;
+
+export const saveMarks = (s: Session, studentId: number, body: Record<string, unknown>, classLevel = 1, section = 'A') =>
+  s.agent.put(assessmentPath(studentId, classLevel, section)).set('X-CSRF-Token', s.csrf).send(body);

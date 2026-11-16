@@ -18,11 +18,22 @@ import { RecentActivity } from './RecentActivity';
 import { ScoreDistribution } from './ScoreDistribution';
 
 /** "Continue where you left off": the first student, in class/section order, with nothing entered yet. */
-function ContinueCard({ pending }: { pending: number }) {
+function ContinueCard({ pending, students }: { pending: number; students: number }) {
   const next = useQuery({ queryKey: ['students', 'next-pending'], queryFn: () => studentsApi.list({ status: 'pending', pageSize: 1 }) });
   const s = next.data?.items[0];
 
   if (next.isPending) return <Skeleton className="h-28 w-full rounded-2xl" />;
+  if (students === 0) {
+    return (
+      <Card className="flex items-center gap-4 border-amber-bar/40 bg-amber-soft p-5 shadow-none sm:p-6">
+        <Users className="size-8 shrink-0 text-amber" aria-hidden />
+        <div>
+          <p className="font-bold text-amber">No classes assigned yet</p>
+          <p className="text-sm text-amber/80">An administrator must assign a class and section before you can enter student data.</p>
+        </div>
+      </Card>
+    );
+  }
   if (!s) {
     return (
       <Card className="flex items-center gap-4 border-good-bar/40 bg-good-soft p-5 shadow-none sm:p-6">
@@ -90,7 +101,7 @@ export function TeacherDashboardPage() {
         </div>
       ) : (
         <>
-          <ContinueCard pending={data.totals.pending} />
+          <ContinueCard pending={data.totals.pending} students={data.totals.students} />
 
           <section aria-label="Assessment statistics" className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
             <KpiTile label="Registered students" value={data.totals.students} icon={Users} tone="primary" hint={`${data.classes.length} classes · ${data.classes.reduce((n, c) => n + c.sections.length, 0)} sections`} />

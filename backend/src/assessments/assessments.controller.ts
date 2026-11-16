@@ -23,8 +23,12 @@ export class AssessmentsController {
   }
 
   @Get('student/:studentId')
-  get(@Param('studentId', studentIdPipe) studentId: number, @CurrentTeacher() teacher: TeacherUser) {
-    return this.assessments.getForTeacher(studentId, teacher.id);
+  get(
+    @Param('studentId', studentIdPipe) studentId: number,
+    @Query() query: ListStudentsDto,
+    @CurrentTeacher() teacher: TeacherUser,
+  ) {
+    return this.assessments.getForTeacher(studentId, teacher.id, query.classLevel, query.section);
   }
 
   @Get('export')
@@ -41,9 +45,10 @@ export class AssessmentsController {
   save(
     @Param('studentId', studentIdPipe) studentId: number,
     @Body() dto: SaveAssessmentDto,
+    @Query() query: ListStudentsDto,
     @CurrentTeacher() teacher: TeacherUser,
   ) {
-    return this.assessments.save(studentId, dto, teacher.id);
+    return this.assessments.save(studentId, dto, teacher.id, query.classLevel, query.section);
   }
 }
 

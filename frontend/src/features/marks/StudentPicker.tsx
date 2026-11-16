@@ -27,6 +27,7 @@ export function StudentPicker({
   reset,
   isFiltered,
   structure,
+  hasSelection,
 }: {
   items: StudentListItem[] | undefined;
   meta: PageMeta | undefined;
@@ -41,6 +42,7 @@ export function StudentPicker({
   reset: () => void;
   isFiltered: boolean;
   structure: ClassSummary[] | undefined;
+  hasSelection: boolean;
 }) {
   const from = meta && meta.total ? (meta.page - 1) * meta.pageSize + 1 : 0;
   const to = meta ? Math.min(meta.page * meta.pageSize, meta.total) : 0;
@@ -64,6 +66,12 @@ export function StudentPicker({
           <ErrorState message={error.message} onRetry={onRetry} />
         ) : isPending ? (
           <RowsSkeleton rows={8} />
+        ) : !hasSelection ? (
+          structure?.length === 0 ? (
+            <EmptyState icon={Users} title="No class sections assigned" description="Ask an administrator to assign you a class and section before entering student data." />
+          ) : (
+            <EmptyState icon={Users} title="Choose a class and section" description="Select the class and section you want to enter marks for." />
+          )
         ) : items && items.length === 0 ? (
           isFiltered ? (
             <EmptyState

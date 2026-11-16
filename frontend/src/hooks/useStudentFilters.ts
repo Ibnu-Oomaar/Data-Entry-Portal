@@ -65,6 +65,7 @@ export function useStudentFilters(defaults: FilterDefaults) {
           if ('sortBy' in patch) set('sort', patch.sortBy, defaults.sortBy);
           if ('sortDir' in patch) set('dir', patch.sortDir, defaults.sortDir);
           if ('pageSize' in patch) set('size', patch.pageSize, defaults.pageSize);
+          if ('classLevel' in patch || 'section' in patch) next.delete('student');
           // Changing anything except the page itself starts again from page 1.
           if ('page' in patch) set('page', patch.page, 1);
           else next.delete('page');

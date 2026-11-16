@@ -22,6 +22,8 @@ import type { ComponentKey, Marks, SaveResult, StudentAssessment } from '@/types
 
 interface Props {
   studentId: number;
+  classLevel: number;
+  section: string;
   onDirtyChange: (dirty: boolean) => void;
   /** Called after "Save & next" succeeded. */
   onNext: () => void;
@@ -30,8 +32,13 @@ interface Props {
   onClose: () => void;
 }
 
-export function MarkSheet({ studentId, ...rest }: Props) {
-  const query = useQuery({ queryKey: ['assessment', studentId], queryFn: () => assessmentsApi.get(studentId), refetchOnWindowFocus: false, gcTime: 0 });
+export function MarkSheet({ studentId, classLevel, section, ...rest }: Props) {
+  const query = useQuery({
+    queryKey: ['assessment', studentId, classLevel, section],
+    queryFn: () => assessmentsApi.get(studentId, { classLevel, section }),
+    refetchOnWindowFocus: false,
+    gcTime: 0,
+  });
 
   if (query.isPending) {
     return (
@@ -50,12 +57,13 @@ export function MarkSheet({ studentId, ...rest }: Props) {
       </Card>
     );
   }
-  return <MarkForm key={studentId} studentId={studentId} data={query.data} refetch={() => query.refetch()} {...rest} />;
+  return <MarkForm key={studentId} studentId={studentId} classLevel={classLevel} section={section} data={query.data} refetch={() => query.refetch()} {...rest} />;
 }
 
 function MarkForm({ studentId, data, refetch, onDirtyChange, onNext, hasNext, onClose }: Props & { data: StudentAssessment; refetch: () => Promise<unknown> }) {
   const qc = useQueryClient();
   const { student, assessment } = data;
+  const assessmentQueryKey = ['assessment', studentId, data.student.classLevel, data.student.section] as const;
   const [conflict, setConflict] = useState<string | null>(null);
   const [emptyError, setEmptyError] = useState(false);
   const inputs = useRef<Array<HTMLInputElement | null>>([]);
@@ -85,10 +93,11 @@ function MarkForm({ studentId, data, refetch, onDirtyChange, onNext, hasNext, on
   }, []);
 
   const save = useMutation({
-    mutationFn: ({ marks }: { marks: Marks; next: boolean }) => assessmentsApi.save(studentId, { ...marks, expectedVersion: assessment?.version ?? null }),
+    mutationFn: ({ marks }: { marks: Marks; next: boolean }) =>
+      assessmentsApi.save(studentId, { ...marks, expectedVersion: assessment?.version ?? null }, { classLevel: data.student.classLevel, section: data.student.section }),
     onSuccess: (res: SaveResult, { next }) => {
       onDirtyChange(false); // so moving on to the next student is not treated as discarding work
-      qc.setQueryData<StudentAssessment>(['assessment', studentId], { student: res.student, assessment: res.assessment });
+      qc.setQueryData<StudentAssessment>(assessmentQueryKey, { student: res.student, assessment: res.assessment });
       reset(marksToFormValues(res.assessment?.marks));
       for (const key of ['students', 'assessments', 'stats', 'structure']) qc.invalidateQueries({ queryKey: [key] });
       setConflict(null);
@@ -172,7 +181,7 @@ function MarkForm({ studentId, data, refetch, onDirtyChange, onNext, hasNext, on
     await refetch();
     setConflict(null);
     // The key on <MarkForm> stays the same, so reload by resetting to the freshly fetched values.
-    const fresh = qc.getQueryData<StudentAssessment>(['assessment', studentId]);
+    const fresh = qc.getQueryData<StudentAssessment>(assessmentQueryKey);
     reset(marksToFormValues(fresh?.assessment?.marks));
     toast.success('Showing the latest saved marks');
   };

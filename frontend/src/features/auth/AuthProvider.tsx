@@ -13,7 +13,8 @@ interface AuthContextValue {
   /** True after the person pressed "Sign out" (as opposed to a session that simply ended). */
   signedOut: boolean;
   role: Role | null;
-  loginTeacher: (name: string) => Promise<Session>;
+  loginTeacher: (name: string, password: string) => Promise<Session>;
+  registerTeacher: (name: string, password: string) => Promise<Session>;
   loginStudent: (studentId: number) => Promise<Session>;
   logout: () => Promise<void>;
 }
@@ -77,7 +78,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       session,
       signedOut,
       role: session?.role ?? null,
-      loginTeacher: (name) => authApi.loginTeacher(name).then(adopt),
+      loginTeacher: (name, password) => authApi.loginTeacher(name, password).then(adopt),
+      registerTeacher: (name, password) => authApi.registerTeacher(name, password).then(adopt),
       loginStudent: (id) => authApi.loginStudent(id).then(adopt),
       logout: async () => {
         try {

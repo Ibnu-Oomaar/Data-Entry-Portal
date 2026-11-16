@@ -71,7 +71,7 @@ export class StatsService {
             ON access.class_level = s.class_level
            AND access.section = s.section
            AND access.teacher_id = $1
-          LEFT JOIN assessments a ON a.student_id = s.id`, [teacherId]),
+          LEFT JOIN assessments a ON a.student_id = s.id AND a.teacher_id = $1`, [teacherId]),
       this.dataSource.query(`
         SELECT LEAST(FLOOR(a.total_marks / 5), 5)::int AS band, COUNT(*) AS n
           FROM assessments a
@@ -80,7 +80,7 @@ export class StatsService {
             ON access.class_level = s.class_level
            AND access.section = s.section
            AND access.teacher_id = $1
-         WHERE a.status = 'submitted'
+         WHERE a.teacher_id = $1 AND a.status = 'submitted'
          GROUP BY 1`, [teacherId]),
       this.dataSource.query(`
         SELECT s.student_id, s.name, s.class_level, s.section, a.status, a.total_marks, a.version, a.updated_at, t.full_name AS teacher
@@ -91,6 +91,7 @@ export class StatsService {
            AND access.section = s.section
            AND access.teacher_id = $1
           JOIN teachers t ON t.id = a.updated_by
+         WHERE a.teacher_id = $1
          ORDER BY a.updated_at DESC LIMIT 8`, [teacherId]),
       this.students.structure(teacherId),
     ]);
@@ -140,9 +141,9 @@ export class StatsService {
   /** The signed-in teacher's own data-entry footprint (profile page). */
   async teacherActivity(teacherId: string) {
     const [row] = await this.dataSource.query(
-      `SELECT COUNT(*) FILTER (WHERE a.created_by = $1) AS created,
-              COUNT(*) FILTER (WHERE a.updated_by = $1) AS last_edited,
-              MAX(a.updated_at) FILTER (WHERE a.updated_by = $1) AS last_at
+      `SELECT COUNT(*) FILTER (WHERE a.teacher_id = $1 AND a.created_by = $1) AS created,
+              COUNT(*) FILTER (WHERE a.teacher_id = $1 AND a.updated_by = $1) AS last_edited,
+              MAX(a.updated_at) FILTER (WHERE a.teacher_id = $1 AND a.updated_by = $1) AS last_at
          FROM assessments a
          JOIN students s ON s.id = a.student_id
          JOIN teacher_class_sections access
@@ -159,7 +160,7 @@ export class StatsService {
            ON access.class_level = s.class_level
           AND access.section = s.section
           AND access.teacher_id = $1
-        WHERE a.updated_by = $1 ORDER BY a.updated_at DESC LIMIT 5`,
+        WHERE a.teacher_id = $1 AND a.updated_by = $1 ORDER BY a.updated_at DESC LIMIT 5`,
       [teacherId],
     );
     return {
