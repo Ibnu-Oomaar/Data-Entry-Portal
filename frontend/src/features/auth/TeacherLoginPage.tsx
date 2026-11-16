@@ -27,7 +27,7 @@ export function TeacherLoginPage() {
   const onSubmit = handleSubmit(async ({ name }) => {
     setFormError(null);
     try {
-      const s = await loginTeacher(name, name);
+      const s = await loginTeacher(name);
       toast.success(`Welcome, ${s.role === 'teacher' ? s.user.fullName : ''}`);
       navigate(from && from.startsWith('/teacher') ? from : '/teacher', { replace: true });
     } catch (err) {

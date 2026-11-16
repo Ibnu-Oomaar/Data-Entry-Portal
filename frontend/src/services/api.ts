@@ -1,3 +1,4 @@
+
 import { api } from './api-client';
 import type {
   AssessmentRecordRow,
@@ -26,8 +27,7 @@ const clean = (q: StudentQuery) =>
 
 export const authApi = {
   me: () => api.get<Envelope<Session>>('/auth/me').then(unwrap),
-  loginTeacher: (name: string, password: string) => api.post<Envelope<Session>>('/auth/teacher/login', { name, password }).then(unwrap),
-  registerTeacher: (name: string, password: string) => api.post<Envelope<Session>>('/auth/teacher/register', { name, password }).then(unwrap),
+  loginTeacher: (name: string) => api.post<Envelope<Session>>('/auth/teacher/login', { name }).then(unwrap),
   loginStudent: (studentId: number) => api.post<Envelope<Session>>('/auth/student/login', { studentId }).then(unwrap),
   logout: () => api.post('/auth/logout').then(() => undefined),
 };
