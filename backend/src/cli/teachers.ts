@@ -1,4 +1,3 @@
-
 import { readFileSync } from 'fs';
 import { TeachersService } from '../teachers/teachers.service';
 import { TeacherClassSectionsService } from '../teachers/teacher-class-sections.service';
@@ -12,6 +11,7 @@ const USAGE = `Teacher provisioning (the only way to create teacher accounts)
   npm run teacher -- list
   npm run teacher -- deactivate "Full Name"
   npm run teacher -- activate "Full Name"
+  $env:TEACHER_PASSWORD="use-a-long-password"; npm run teacher -- set-password "Full Name"
   npm run teacher -- assignments
   npm run teacher -- assign "Full Name" <class> <section>
   npm run teacher -- unassign "Full Name" <class> <section>`;
@@ -57,6 +57,15 @@ runCli(async (app) => {
       }
       const t = await teachers.setActive(rest.join(' '), cmd === 'activate');
       console.log(`${t.fullName} is now ${t.isActive ? 'active' : 'inactive'}.`);
+      return 0;
+    }
+    case 'set-password': {
+      if (rest.length !== 1 || !process.env.TEACHER_PASSWORD) {
+        console.error('Set TEACHER_PASSWORD to a 12–128 character password, then run:\n  npm run teacher -- set-password "Full Name"');
+        return 1;
+      }
+      await teachers.setPassword(rest[0], process.env.TEACHER_PASSWORD);
+      console.log(`Password updated for ${rest[0]}.`);
       return 0;
     }
     case 'assignments': {

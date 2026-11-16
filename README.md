@@ -4,7 +4,7 @@
 
 Teacher access to student and assessment data is limited to explicitly assigned class/section pairs. The new teacher-class-section migration creates the assignment table but intentionally does not assign existing sections to anyone.
 
-Teachers can create accounts from the teacher sign-in page using a password of at least 12 characters. New accounts start with no class access; an administrator must assign one or more class/section pairs before students are available. Passwords are stored as scrypt hashes. Existing administrator-provisioned teachers need a password set once before password-based sign-in:
+Teachers can create accounts from the teacher sign-in page using a password of at least 12 characters. New accounts start with no class access; an administrator must assign one or more class/section pairs before students are available. New passwords are stored as Argon2id hashes. Existing scrypt hashes are upgraded to Argon2id after the teacher signs in successfully. Administrator-provisioned teachers need a password set once before password-based sign-in:
 
 ```powershell
 $env:TEACHER_PASSWORD = "use-a-long-password"

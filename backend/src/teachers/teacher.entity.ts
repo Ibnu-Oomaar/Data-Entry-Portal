@@ -1,4 +1,3 @@
-
 import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, Unique, UpdateDateColumn } from 'typeorm';
 
 @Entity('teachers')
@@ -14,6 +13,9 @@ export class Teacher {
   /** Lower-cased, whitespace-collapsed copy used for login matching. Unique => no ambiguous logins. */
   @Column({ name: 'normalized_name', type: 'varchar', length: 150 })
   normalizedName: string;
+
+  @Column({ name: 'password_hash', type: 'varchar', length: 200, nullable: true, select: false })
+  passwordHash: string | null;
 
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;

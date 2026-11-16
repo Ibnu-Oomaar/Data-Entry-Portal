@@ -1,3 +1,4 @@
+import { scryptSync } from 'crypto';
 import { INestApplication } from '@nestjs/common';
 import ExcelJS from 'exceljs';
 import request from 'supertest';
@@ -126,6 +127,24 @@ describe('Classes Data Entry Portal (end to end, real PostgreSQL + workbook)', (
       expect(cookie).toMatch(/HttpOnly/i);
       expect(cookie).toMatch(/SameSite=Lax/i);
       expect(cookie).toMatch(/Path=\//);
+    });
+
+    it('upgrades existing scrypt hashes to Argon2id after a successful login', async () => {
+      const salt = Buffer.from('00112233445566778899aabbccddeeff', 'hex');
+      const key = scryptSync(TEST_TEACHER_PASSWORD, salt, 64, { N: 16_384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
+      const legacyHash = `scrypt$16384$8$1$${salt.toString('hex')}$${key.toString('hex')}`;
+      await ds.query('UPDATE teachers SET password_hash = $1 WHERE normalized_name = $2', [legacyHash, 'amina yusuf']);
+
+      await http()
+        .post('/api/auth/teacher/login')
+        .send({ name: 'Amina Yusuf', password: TEST_TEACHER_PASSWORD })
+        .expect(200);
+
+      const rows: Array<{ password_hash: string }> = await ds.query(
+        'SELECT password_hash FROM teachers WHERE normalized_name = $1',
+        ['amina yusuf'],
+      );
+      expect(rows[0].password_hash).toMatch(/^\$argon2id\$/);
     });
 
     it('rejects unknown and deactivated teachers with the same generic error', async () => {

@@ -121,7 +121,7 @@ export function ProfilePage() {
             <p className="font-semibold">Keep your account safe</p>
             <p className="text-muted-foreground">
               {isTeacher
-                ? 'Sign-in uses your registered name only, with no password. Sign out when you use a shared computer.'
+                ? 'Sign-in uses your registered name and password. Sign out when you use a shared computer.'
                 : 'Sign-in uses your Student ID only. Don’t share it — anyone who knows it can see your marks. Sign out on shared devices.'}
             </p>
           </div>
