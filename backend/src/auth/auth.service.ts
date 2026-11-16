@@ -1,3 +1,4 @@
+
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import type { Request, Response } from 'express';
@@ -27,25 +28,18 @@ export class AuthService {
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
-  async loginTeacher(req: Request, name: string, password: string): Promise<SessionView> {
+  async loginTeacher(req: Request, name: string): Promise<SessionView> {
     const ip = req.ip ?? 'unknown';
     await this.limiter.assertLoginAllowed(ip);
-    const teacher = await this.teachers.authenticate(name, password);
+    const teacher = await this.teachers.authenticate(name);
     if (!teacher) {
       await this.limiter.recordLoginFailure(ip);
       throw new AppException(
         HttpStatus.UNAUTHORIZED,
         'INVALID_CREDENTIALS',
-        'The name or password is incorrect.',
+        'The teacher name is incorrect or the account is inactive.',
       );
     }
-    await this.openSession(req, 'teacher', teacher.id, this.config.session.teacherTtlSeconds);
-    return this.view(req, { role: 'teacher', id: teacher.id, fullName: teacher.fullName });
-  }
-
-  async registerTeacher(req: Request, name: string, password: string): Promise<SessionView> {
-    await this.limiter.assertLoginAllowed(req.ip ?? 'unknown');
-    const teacher = await this.teachers.register(name, password);
     await this.openSession(req, 'teacher', teacher.id, this.config.session.teacherTtlSeconds);
     return this.view(req, { role: 'teacher', id: teacher.id, fullName: teacher.fullName });
   }
