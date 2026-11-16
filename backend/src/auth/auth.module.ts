@@ -1,3 +1,4 @@
+
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { StudentsModule } from '../students/students.module';
@@ -13,7 +14,6 @@ import { RateLimitService } from './rate-limit.service';
   providers: [
     AuthService,
     RateLimitService,
-    // Global guards run in this order for every route.
     { provide: APP_GUARD, useClass: RateLimitGuard },
     { provide: APP_GUARD, useClass: SessionAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
