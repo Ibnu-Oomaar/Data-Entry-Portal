@@ -1,7 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import type { AuthenticationResponseJSON } from '@simplewebauthn/browser';
 import { ApiError, setCsrfToken, setUnauthorizedHandler } from '@/services/api-client';
 import { authApi } from '@/services/api';
 import type { Role, Session } from '@/types/api';
@@ -14,8 +13,7 @@ interface AuthContextValue {
   /** True after the person pressed "Sign out" (as opposed to a session that simply ended). */
   signedOut: boolean;
   role: Role | null;
-  loginTeacher: (name: string, password: string) => Promise<Session>;
-  loginTeacherWithPasskey: (flowId: string, response: AuthenticationResponseJSON) => Promise<Session>;
+  loginTeacher: (password: string) => Promise<Session>;
   loginStudent: (studentId: number) => Promise<Session>;
   logout: () => Promise<void>;
 }
@@ -79,8 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       session,
       signedOut,
       role: session?.role ?? null,
-      loginTeacher: (name, password) => authApi.loginTeacher(name, password).then(adopt),
-      loginTeacherWithPasskey: (flowId, response) => authApi.verifyPasskeyLogin(flowId, response).then(adopt),
+      loginTeacher: (password) => authApi.loginTeacher(password).then(adopt),
       loginStudent: (id) => authApi.loginStudent(id).then(adopt),
       logout: async () => {
         try {

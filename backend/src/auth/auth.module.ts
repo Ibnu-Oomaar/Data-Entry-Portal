@@ -1,8 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { StudentsModule } from '../students/students.module';
-import { TeacherPasskey } from '../teachers/teacher-passkey.entity';
 import { TeachersModule } from '../teachers/teachers.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -10,7 +8,7 @@ import { CsrfGuard, RateLimitGuard, RolesGuard, SessionAuthGuard } from './guard
 import { RateLimitService } from './rate-limit.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([TeacherPasskey]), TeachersModule, StudentsModule],
+  imports: [TeachersModule, StudentsModule],
   controllers: [AuthController],
   providers: [
     AuthService,

@@ -4,7 +4,6 @@ import type { AuthUser } from './auth.types';
 import { AuthService } from './auth.service';
 import { CurrentUser, Public, Roles } from './decorators/auth.decorators';
 import { StudentLoginDto, TeacherLoginDto } from './dto/login.dto';
-import { PasskeyAuthenticationDto, PasskeyRegistrationDto } from './dto/passkey.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -15,44 +14,6 @@ export class AuthController {
   @HttpCode(200)
   teacherLogin(@Body() dto: TeacherLoginDto, @Req() req: Request) {
     return this.auth.loginTeacher(req, dto.name, dto.password);
-  }
-
-  @Public()
-  @Post('teacher/passkey/options')
-  @HttpCode(200)
-  teacherPasskeyOptions(@Req() req: Request) {
-    return this.auth.passkeyLoginOptions(req);
-  }
-
-  @Public()
-  @Post('teacher/passkey/verify')
-  @HttpCode(200)
-  teacherPasskeyVerify(@Body() dto: PasskeyAuthenticationDto, @Req() req: Request) {
-    return this.auth.loginTeacherWithPasskey(req, dto.flowId, dto.response);
-  }
-
-  @Post('teacher/passkey/register/options')
-  @HttpCode(200)
-  @Roles('teacher')
-  teacherPasskeyRegistrationOptions(@CurrentUser() user: AuthUser, @Req() req: Request) {
-    return this.auth.passkeyRegistrationOptions(req, user);
-  }
-
-  @Post('teacher/passkey/register/verify')
-  @HttpCode(200)
-  @Roles('teacher')
-  teacherPasskeyRegistrationVerify(
-    @CurrentUser() user: AuthUser,
-    @Body() dto: PasskeyRegistrationDto,
-    @Req() req: Request,
-  ) {
-    return this.auth.registerPasskey(req, user, dto.flowId, dto.response);
-  }
-
-  @Get('teacher/passkeys')
-  @Roles('teacher')
-  teacherPasskeys(@CurrentUser() user: AuthUser) {
-    return this.auth.listPasskeys(user);
   }
 
   @Public()

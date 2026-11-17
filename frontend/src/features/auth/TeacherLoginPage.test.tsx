@@ -1,38 +1,57 @@
-import { screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderWithProviders } from '@/test/render';
 import { TeacherLoginPage } from './TeacherLoginPage';
 
-vi.mock('./AuthProvider', () => ({ useAuth: () => ({ loginTeacherWithPasskey: vi.fn() }) }));
+const auth = vi.hoisted(() => ({ loginTeacher: vi.fn() }));
+vi.mock('./AuthProvider', () => ({ useAuth: () => auth }));
 vi.mock('./LoginShell', () => ({
   LoginShell: ({
     title,
     description,
     children,
-    footer,
   }: {
     title: string;
     description: string;
     children: React.ReactNode;
-    footer?: React.ReactNode;
   }) => (
     <main>
       <h1>{title}</h1>
       <p>{description}</p>
       {children}
-      {footer}
     </main>
   ),
 }));
 
 describe('TeacherLoginPage', () => {
-  it('shows only Khalid Harun and does not render a password or account-registration field', () => {
-    renderWithProviders(<TeacherLoginPage />, { route: '/login/teacher' });
+  beforeEach(() => {
+    auth.loginTeacher.mockReset();
+  });
+
+  it('shows Khalid Harun with a single password input and no name field', () => {
+    const { container } = renderWithProviders(<TeacherLoginPage />, { route: '/login/teacher' });
 
     expect(screen.getByText('Khalid Harun')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Continue as Khalid Harun' })).toBeInTheDocument();
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(/password/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/create an account/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Password')).toHaveAttribute('type', 'password');
+    expect(container.querySelectorAll('input')).toHaveLength(1);
+    expect(screen.queryByLabelText(/name/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
+    expect(screen.queryByText(/passkey|create an account/i)).not.toBeInTheDocument();
+  });
+
+  it('submits only the password through the teacher login action', async () => {
+    auth.loginTeacher.mockResolvedValue({
+      role: 'teacher',
+      user: { fullName: 'Khalid Harun' },
+      csrfToken: 'token',
+      school: { name: 'School', shift: 'Morning' },
+      expiresAt: null,
+    });
+    renderWithProviders(<TeacherLoginPage />, { route: '/login/teacher' });
+
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'existing-password' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+
+    await waitFor(() => expect(auth.loginTeacher).toHaveBeenCalledWith('existing-password'));
   });
 });

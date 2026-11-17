@@ -1,32 +1,29 @@
-import { browserSupportsWebAuthn, startAuthentication } from '@simplewebauthn/browser';
-import { Fingerprint, Loader2 } from 'lucide-react';
+import { Loader2, LogIn } from 'lucide-react';
 import { useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { ApiError } from '@/services/api-client';
-import { authApi } from '@/services/api';
 import { useAuth } from './AuthProvider';
 import { LoginShell } from './LoginShell';
 
-const TEACHER_NAME = 'Khalid Harun';
-
 export function TeacherLoginPage() {
-  const { loginTeacherWithPasskey } = useAuth();
+  const { loginTeacher } = useAuth();
   const navigate = useNavigate();
   const from = (useLocation().state as { from?: string } | null)?.from;
+  const [password, setPassword] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const supportsPasskeys = browserSupportsWebAuthn();
 
-  const signIn = async () => {
+  const signIn = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     setFormError(null);
     setIsSubmitting(true);
     try {
-      const { flowId, options } = await authApi.passkeyLoginOptions();
-      const response = await startAuthentication({ optionsJSON: options });
-      const session = await loginTeacherWithPasskey(flowId, response);
-      toast.success(`Welcome, ${session.role === 'teacher' ? session.user.fullName : TEACHER_NAME}`);
+      const session = await loginTeacher(password);
+      toast.success(`Welcome, ${session.role === 'teacher' ? session.user.fullName : 'Khalid Harun'}`);
       navigate(from && from.startsWith('/teacher') ? from : '/teacher', { replace: true });
     } catch (error) {
       setFormError(error instanceof ApiError || error instanceof Error ? error.message : 'Could not complete sign in. Please try again.');
@@ -36,35 +33,35 @@ export function TeacherLoginPage() {
   };
 
   return (
-    <LoginShell
-      title="Teacher sign in"
-      description="Sign in securely with Khalid Harun’s passkey."
-      footer={
-        <p className="text-sm text-muted-foreground">
-          Use password sign in if you need to set up or recover a passkey:{' '}
-          <Link to="/login/teacher/password" className="font-semibold text-primary hover:underline">
-            Continue with password
-          </Link>
-        </p>
-      }
-    >
-      <div className="space-y-5">
-        <p className="text-center text-lg font-semibold">{TEACHER_NAME}</p>
-        {!supportsPasskeys && (
-          <p role="status" className="text-sm text-muted-foreground">
-            Passkeys are not available in this browser. Use password sign in to continue.
-          </p>
-        )}
+    <LoginShell title="Teacher sign in" description="Enter Khalid Harun’s account password.">
+      <form onSubmit={(event) => void signIn(event)} className="space-y-5">
+        <p className="text-center text-lg font-semibold">Khalid Harun</p>
+        <div className="space-y-2">
+          <Label htmlFor="password">Password</Label>
+          <Input
+            id="password"
+            type="password"
+            autoFocus
+            autoComplete="current-password"
+            minLength={12}
+            maxLength={128}
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            aria-invalid={!!formError}
+            aria-describedby={formError ? 'form-error' : undefined}
+            required
+          />
+        </div>
         {formError && (
-          <p role="alert" className="rounded-lg bg-pen-soft px-3 py-2.5 text-sm font-medium text-destructive">
+          <p id="form-error" role="alert" className="rounded-lg bg-pen-soft px-3 py-2.5 text-sm font-medium text-destructive">
             {formError}
           </p>
         )}
-        <Button type="button" size="lg" className="w-full" disabled={!supportsPasskeys || isSubmitting} onClick={() => void signIn()}>
-          {isSubmitting ? <Loader2 className="animate-spin" aria-hidden /> : <Fingerprint aria-hidden />}
-          {isSubmitting ? 'Verifying passkey…' : `Continue as ${TEACHER_NAME}`}
+        <Button type="submit" size="lg" className="w-full" disabled={isSubmitting || !password}>
+          {isSubmitting ? <Loader2 className="animate-spin" aria-hidden /> : <LogIn aria-hidden />}
+          {isSubmitting ? 'Signing in…' : 'Sign in'}
         </Button>
-      </div>
+      </form>
     </LoginShell>
   );
 }

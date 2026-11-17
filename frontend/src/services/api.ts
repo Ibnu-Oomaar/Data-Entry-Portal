@@ -1,11 +1,5 @@
 import { api } from './api-client';
 import type {
-  AuthenticationResponseJSON,
-  PublicKeyCredentialCreationOptionsJSON,
-  PublicKeyCredentialRequestOptionsJSON,
-  RegistrationResponseJSON,
-} from '@simplewebauthn/browser';
-import type {
   AssessmentRecordRow,
   ClassSummary,
   Overview,
@@ -26,7 +20,7 @@ type Envelope<T> = { success: true; data: T; meta?: PageMeta };
 const unwrap = <T>(res: { data: Envelope<T> }): T => res.data.data;
 const unwrapPage = <T>(res: { data: Envelope<T[]> }): Paged<T> => ({ items: res.data.data, meta: res.data.meta! });
 
-type PasskeyOptions<T> = { flowId: string; options: T };
+const TEACHER_LOGIN_NAME = 'Khalid Harun';
 
 /** Drops empty values so the URL and the request stay clean. */
 const clean = (q: StudentQuery) =>
@@ -34,16 +28,8 @@ const clean = (q: StudentQuery) =>
 
 export const authApi = {
   me: () => api.get<Envelope<Session>>('/auth/me').then(unwrap),
-  loginTeacher: (name: string, password: string) => api.post<Envelope<Session>>('/auth/teacher/login', { name, password }).then(unwrap),
-  passkeyLoginOptions: () =>
-    api.post<Envelope<PasskeyOptions<PublicKeyCredentialRequestOptionsJSON>>>('/auth/teacher/passkey/options').then(unwrap),
-  verifyPasskeyLogin: (flowId: string, response: AuthenticationResponseJSON) =>
-    api.post<Envelope<Session>>('/auth/teacher/passkey/verify', { flowId, response }).then(unwrap),
-  passkeys: () => api.get<Envelope<{ count: number }>>('/auth/teacher/passkeys').then(unwrap),
-  passkeyRegistrationOptions: () =>
-    api.post<Envelope<PasskeyOptions<PublicKeyCredentialCreationOptionsJSON>>>('/auth/teacher/passkey/register/options').then(unwrap),
-  verifyPasskeyRegistration: (flowId: string, response: RegistrationResponseJSON) =>
-    api.post<Envelope<{ registered: true }>>('/auth/teacher/passkey/register/verify', { flowId, response }).then(unwrap),
+  loginTeacher: (password: string) =>
+    api.post<Envelope<Session>>('/auth/teacher/login', { name: TEACHER_LOGIN_NAME, password }).then(unwrap),
   loginStudent: (studentId: number) => api.post<Envelope<Session>>('/auth/student/login', { studentId }).then(unwrap),
   logout: () => api.post('/auth/logout').then(() => undefined),
 };

@@ -12,7 +12,7 @@ npm run teacher -- set-password "Full Name"
 Remove-Item Env:TEACHER_PASSWORD
 ```
 
-The teacher sign-in page shows only Khalid Harun and uses a passkey, with no password field on that page. To enroll a passkey, sign in once through the separate password sign-in route and add it from the teacher profile. The password route remains available as a recovery path. Passkey deployments must use HTTPS (except localhost) and configure `WEBAUTHN_RP_ID` when the relying-party hostname cannot be derived from the first `CORS_ORIGINS` value.
+The teacher sign-in page shows Khalid Harun and asks only for his account password. The login request is tied to his registered account; public teacher registration is disabled.
 
 Apply pending migrations with the normal deployment migration process (`RUN_MIGRATIONS=true`, the default), or run `npm run migration:run:dev` from `backend` when migrations are managed manually. Import the student roster, provision teacher accounts, then manage assignments from `backend`:
 
