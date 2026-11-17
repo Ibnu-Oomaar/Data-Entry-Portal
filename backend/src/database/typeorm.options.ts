@@ -4,6 +4,7 @@ import { Assessment } from '../assessments/assessment.entity';
 import { Student } from '../students/student.entity';
 import { Teacher } from '../teachers/teacher.entity';
 import { TeacherClassSection } from '../teachers/teacher-class-section.entity';
+import { TeacherPasskey } from '../teachers/teacher-passkey.entity';
 
 export function buildTypeOrmOptions(opts: {
   databaseUrl: string;
@@ -14,7 +15,7 @@ export function buildTypeOrmOptions(opts: {
     type: 'postgres',
     url: opts.databaseUrl,
     ssl: opts.databaseSsl ? { rejectUnauthorized: false } : false,
-    entities: [Teacher, TeacherClassSection, Student, Assessment],
+    entities: [Teacher, TeacherClassSection, TeacherPasskey, Student, Assessment],
     migrations: [join(__dirname, 'migrations', '*.{ts,js}')],
     migrationsRun: opts.runMigrations ?? false,
     // Schema changes only ever happen through reviewed migrations.

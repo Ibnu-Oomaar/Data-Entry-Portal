@@ -161,17 +161,13 @@ describe('Classes Data Entry Portal (end to end, real PostgreSQL + workbook)', (
       }
     });
 
-    it('registers independent accounts without granting class access', async () => {
-      const signup = await http()
+    it('does not expose public teacher registration', async () => {
+      await http()
         .post('/api/auth/teacher/register')
         .send({ name: 'New Teacher', password: TEST_TEACHER_PASSWORD })
-        .expect(201);
-      expect(signup.body.data.user.fullName).toBe('New Teacher');
+        .expect(404);
       const created = await app.get(TeachersService).findByLoginName('New Teacher');
-      expect(created).toBeTruthy();
-      expect(created?.passwordHash).toBeUndefined();
-      expect(await app.get(TeacherClassSectionsService).hasAccess(created!.id, 1, 'A')).toBe(false);
-      await http().post('/api/auth/teacher/register').send({ name: 'New Teacher', password: TEST_TEACHER_PASSWORD }).expect(409);
+      expect(created).toBeNull();
       await http().post('/api/auth/teacher/login').send({ name: 'Amina Yusuf', password: 'a-different-long-password' }).expect(401);
     });
 

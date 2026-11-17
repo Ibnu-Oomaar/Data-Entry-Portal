@@ -11,6 +11,7 @@ import { useAuth } from '@/features/auth/AuthProvider';
 import { formatMark } from '@/lib/assessment';
 import { classLabel, formatDateTime, timeAgo } from '@/lib/utils';
 import { statsApi } from '@/services/api';
+import { TeacherPasskeySetup } from './TeacherPasskeySetup';
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -113,6 +114,7 @@ export function ProfilePage() {
       </Card>
 
       {isTeacher && <TeacherActivity />}
+      {isTeacher && <TeacherPasskeySetup />}
 
       <Card>
         <CardContent className="flex flex-col gap-4 pt-6 sm:flex-row sm:items-center">
@@ -121,7 +123,7 @@ export function ProfilePage() {
             <p className="font-semibold">Keep your account safe</p>
             <p className="text-muted-foreground">
               {isTeacher
-                ? 'Sign-in uses your registered name and password. Sign out when you use a shared computer.'
+                ? 'Sign in with a passkey or your account password. Sign out when you use a shared computer.'
                 : 'Sign-in uses your Student ID only. Don’t share it — anyone who knows it can see your marks. Sign out on shared devices.'}
             </p>
           </div>

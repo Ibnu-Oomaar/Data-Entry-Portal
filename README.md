@@ -4,13 +4,15 @@
 
 Teacher access to student and assessment data is limited to explicitly assigned class/section pairs. The new teacher-class-section migration creates the assignment table but intentionally does not assign existing sections to anyone.
 
-Teachers can create accounts from the teacher sign-in page using a password of at least 12 characters. New accounts start with no class access; an administrator must assign one or more class/section pairs before students are available. New passwords are stored as Argon2id hashes. Existing scrypt hashes are upgraded to Argon2id after the teacher signs in successfully. Administrator-provisioned teachers need a password set once before password-based sign-in:
+Teacher accounts are provisioned by an administrator; public teacher registration is disabled. New accounts start with no class access; an administrator must assign one or more class/section pairs before students are available. New passwords are stored as Argon2id hashes. Existing scrypt hashes are upgraded to Argon2id after the teacher signs in successfully. Administrator-provisioned teachers need a password set once before password-based sign-in:
 
 ```powershell
 $env:TEACHER_PASSWORD = "use-a-long-password"
 npm run teacher -- set-password "Full Name"
 Remove-Item Env:TEACHER_PASSWORD
 ```
+
+The teacher sign-in page shows only Khalid Harun and uses a passkey, with no password field on that page. To enroll a passkey, sign in once through the separate password sign-in route and add it from the teacher profile. The password route remains available as a recovery path. Passkey deployments must use HTTPS (except localhost) and configure `WEBAUTHN_RP_ID` when the relying-party hostname cannot be derived from the first `CORS_ORIGINS` value.
 
 Apply pending migrations with the normal deployment migration process (`RUN_MIGRATIONS=true`, the default), or run `npm run migration:run:dev` from `backend` when migrations are managed manually. Import the student roster, provision teacher accounts, then manage assignments from `backend`:
 

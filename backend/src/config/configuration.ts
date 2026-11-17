@@ -10,6 +10,7 @@ export interface AppConfig {
   sessionSecret: string;
   cookieSecure: boolean;
   corsOrigins: string[];
+  webauthn: { rpId: string; origins: string[]; rpName: string };
   trustProxy: number;
   school: { name: string; shift: string };
   session: { teacherTtlSeconds: number; studentTtlSeconds: number };
@@ -58,6 +59,33 @@ export function loadConfig(env: Env = process.env): AppConfig {
   if (sessionSecret.length < 32) problems.push('SESSION_SECRET must be at least 32 characters');
   if (isProduction && /change-me/i.test(sessionSecret)) problems.push('SESSION_SECRET still has the example value');
 
+  const corsOrigins = [
+    ...new Set([
+      ...(env.CORS_ORIGINS ?? '')
+        .split(',')
+        .map((o) => o.trim())
+        .filter(Boolean),
+      DEPLOYED_FRONTEND_ORIGIN,
+    ]),
+  ];
+  const defaultWebAuthnOrigin = (env.CORS_ORIGINS ?? '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .find(Boolean) ?? DEPLOYED_FRONTEND_ORIGIN;
+  let defaultRpId = 'localhost';
+  try {
+    defaultRpId = new URL(defaultWebAuthnOrigin).hostname;
+  } catch {
+    problems.push('The first CORS_ORIGINS value must be a valid origin for WebAuthn.');
+  }
+  const rpId = env.WEBAUTHN_RP_ID?.trim() || defaultRpId;
+  if (!/^[a-z0-9.-]+$/i.test(rpId)) problems.push('WEBAUTHN_RP_ID must be a hostname, not a URL.');
+
+  const school = {
+    name: env.SCHOOL_NAME?.trim() || 'Noradin Boys Secondary School',
+    shift: env.SCHOOL_SHIFT?.trim() || 'Morning',
+  };
+
   if (problems.length) {
     throw new Error(`Invalid configuration:\n - ${problems.join('\n - ')}`);
   }
@@ -71,20 +99,14 @@ export function loadConfig(env: Env = process.env): AppConfig {
     runMigrations: bool(env.RUN_MIGRATIONS, true),
     sessionSecret,
     cookieSecure: bool(env.COOKIE_SECURE, isProduction),
-    corsOrigins: [
-      ...new Set([
-        ...(env.CORS_ORIGINS ?? '')
-          .split(',')
-          .map((o) => o.trim())
-          .filter(Boolean),
-        DEPLOYED_FRONTEND_ORIGIN,
-      ]),
-    ],
-    trustProxy: int(env, 'TRUST_PROXY', 0),
-    school: {
-      name: env.SCHOOL_NAME?.trim() || 'Noradin Boys Secondary School',
-      shift: env.SCHOOL_SHIFT?.trim() || 'Morning',
+    corsOrigins,
+    webauthn: {
+      rpId,
+      origins: corsOrigins.map((origin) => new URL(origin).origin),
+      rpName: school.name,
     },
+    trustProxy: int(env, 'TRUST_PROXY', 0),
+    school,
     session: {
       teacherTtlSeconds: int(env, 'SESSION_TTL_TEACHER_HOURS', 8, 1) * 3600,
       studentTtlSeconds: int(env, 'SESSION_TTL_STUDENT_HOURS', 2, 1) * 3600,

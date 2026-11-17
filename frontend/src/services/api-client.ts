@@ -25,7 +25,13 @@ export const setUnauthorizedHandler = (fn: (() => void) | null) => {
 };
 
 /** Requests that legitimately return 401/403 without meaning "your session ended". */
-const AUTH_PATHS = ['/auth/teacher/login', '/auth/student/login', '/auth/me'];
+const AUTH_PATHS = [
+  '/auth/teacher/login',
+  '/auth/teacher/passkey/options',
+  '/auth/teacher/passkey/verify',
+  '/auth/student/login',
+  '/auth/me',
+];
 
 export const api = axios.create({
   baseURL: '/api',

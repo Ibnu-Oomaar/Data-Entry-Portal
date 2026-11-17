@@ -35,6 +35,7 @@ const router = createBrowserRouter([
         children: [
           { path: '/', lazy: page(() => import('@/features/auth/LandingPage'), 'LandingPage') },
           { path: '/login/teacher', lazy: page(() => import('@/features/auth/TeacherLoginPage'), 'TeacherLoginPage') },
+          { path: '/login/teacher/password', lazy: page(() => import('@/features/auth/TeacherPasswordLoginPage'), 'TeacherPasswordLoginPage') },
           { path: '/login/student', lazy: page(() => import('@/features/auth/StudentLoginPage'), 'StudentLoginPage') },
         ],
       },
