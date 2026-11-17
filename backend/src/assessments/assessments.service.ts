@@ -10,6 +10,7 @@ import { escapeLike } from '../common/utils/normalize';
 import { NAME_ORDER_SQL, applyOrder } from '../common/utils/order';
 import { ListStudentsDto } from '../students/dto/list-students.dto';
 import { StudentsService } from '../students/students.service';
+import { Teacher } from '../teachers/teacher.entity';
 import { TeacherClassSection } from '../teachers/teacher-class-section.entity';
 import { Assessment } from './assessment.entity';
 import { AssessmentView, StudentSummary, marksOf, toAssessmentView, toStudentSummary } from './assessment.view';
@@ -152,6 +153,8 @@ export class AssessmentsService {
         where: { studentRefId, teacherRefId: teacherId },
         lock: { mode: 'pessimistic_write' },
       });
+      const actor = await em.getRepository(Teacher).findOne({ where: { id: teacherId } });
+      if (!actor) throw new Error(`Authenticated teacher ${teacherId} no longer exists.`);
 
       if (!existing) {
         if (expectedVersion !== null) {
@@ -166,7 +169,9 @@ export class AssessmentsService {
             status: computed.status,
             version: 1,
             createdByRefId: teacherId,
+            createdByName: actor.fullName,
             updatedByRefId: teacherId,
+            updatedByName: actor.fullName,
           }),
         );
         return { id: created.id, created: true, unchanged: false };
@@ -186,6 +191,7 @@ export class AssessmentsService {
         status: computed.status,
         version: existing.version + 1,
         updatedByRefId: teacherId,
+        updatedByName: actor.fullName,
       });
       await repo.save(existing);
       return { id: existing.id, created: false, unchanged: false };
@@ -204,8 +210,8 @@ export class AssessmentsService {
         { teacherId },
       )
       .andWhere('a.teacher_id = :teacherId')
-      .innerJoin('a.createdBy', 'cb')
-      .innerJoin('a.updatedBy', 'ub');
+      .leftJoin('a.createdBy', 'cb')
+      .leftJoin('a.updatedBy', 'ub');
     if (q.classLevel !== undefined) qb.andWhere('s.class_level = :classLevel', { classLevel: q.classLevel });
     if (q.section) qb.andWhere('s.section = :section', { section: q.section });
     if (q.status === 'pending') qb.andWhere('1 = 0');
@@ -225,8 +231,8 @@ export class AssessmentsService {
       .addSelect('a.total_marks', 'totalMarks')
       .addSelect('a.status', 'status')
       .addSelect('a.version', 'version')
-      .addSelect('cb.full_name', 'createdBy')
-      .addSelect('ub.full_name', 'updatedBy')
+      .addSelect('COALESCE(a.created_by_name, cb.full_name)', 'createdBy')
+      .addSelect('COALESCE(a.updated_by_name, ub.full_name)', 'updatedBy')
       .addSelect('a.created_at', 'createdAt')
       .addSelect('a.updated_at', 'updatedAt');
     for (const k of COMPONENT_KEYS) qb.addSelect(`a.${snake(k)}`, k);

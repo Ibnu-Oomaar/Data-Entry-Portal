@@ -20,7 +20,9 @@ npm run teacher -- assign "Full Name" 1 A
 npm run teacher -- unassign "Full Name" 1 A
 ```
 
-Each teacher/section pair is assigned independently, so a section may be shared by multiple teachers. An unassigned section is unavailable to all teachers until assigned. Student access follows each teacher's assignments, and assessment records remain private to the teacher who entered them.
+Each teacher/section pair is assigned independently, so a section may be shared by multiple teachers. An unassigned section is unavailable to all teachers until assigned. Student access follows each teacher's assignments. Assessment records are private to their current owner, while creator/updater attribution is retained separately for audit history.
+
+The Khalid Harun teacher-offboarding migration preserves his existing assignments, removes other teachers' assignments, and transfers non-conflicting assessment ownership. If an assessment conflicts with an existing Khalid-owned assessment for the same student, the original record is preserved in `assessment_teacher_ownership_archive` rather than overwritten or merged. Creator/updater IDs and name snapshots retain historical attribution; the `assessment_teacher_ownership_transfers` table records ownership changes. This migration is irreversible, so take a verified database backup before applying it.
 
 ## Excel exports
 

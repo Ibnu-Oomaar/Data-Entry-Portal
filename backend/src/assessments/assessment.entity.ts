@@ -100,12 +100,18 @@ export class Assessment {
   @Column({ name: 'created_by', type: 'uuid' })
   createdByRefId: string;
 
+  @Column({ name: 'created_by_name', type: 'varchar', length: 150, nullable: true })
+  createdByName: string | null;
+
   @ManyToOne(() => Teacher, { nullable: false, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'created_by' })
   createdBy: Relation<Teacher>;
 
   @Column({ name: 'updated_by', type: 'uuid' })
   updatedByRefId: string;
+
+  @Column({ name: 'updated_by_name', type: 'varchar', length: 150, nullable: true })
+  updatedByName: string | null;
 
   @ManyToOne(() => Teacher, { nullable: false, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'updated_by' })

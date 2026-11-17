@@ -83,14 +83,15 @@ export class StatsService {
          WHERE a.teacher_id = $1 AND a.status = 'submitted'
          GROUP BY 1`, [teacherId]),
       this.dataSource.query(`
-        SELECT s.student_id, s.name, s.class_level, s.section, a.status, a.total_marks, a.version, a.updated_at, t.full_name AS teacher
+        SELECT s.student_id, s.name, s.class_level, s.section, a.status, a.total_marks, a.version, a.updated_at,
+               COALESCE(a.updated_by_name, t.full_name) AS teacher
           FROM assessments a
           JOIN students s ON s.id = a.student_id
           JOIN teacher_class_sections access
             ON access.class_level = s.class_level
            AND access.section = s.section
            AND access.teacher_id = $1
-          JOIN teachers t ON t.id = a.updated_by
+          LEFT JOIN teachers t ON t.id = a.updated_by
          WHERE a.teacher_id = $1
          ORDER BY a.updated_at DESC LIMIT 8`, [teacherId]),
       this.students.structure(teacherId),

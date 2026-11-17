@@ -54,6 +54,11 @@ export function toAssessmentView(a: Assessment, opts: { audit: boolean }): Asses
     version: a.version,
     createdAt: a.createdAt.toISOString(),
     updatedAt: a.updatedAt.toISOString(),
-    ...(opts.audit ? { createdBy: a.createdBy?.fullName, updatedBy: a.updatedBy?.fullName } : {}),
+    ...(opts.audit
+      ? {
+          createdBy: a.createdByName ?? a.createdBy?.fullName,
+          updatedBy: a.updatedByName ?? a.updatedBy?.fullName,
+        }
+      : {}),
   };
 }
